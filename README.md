@@ -31,3 +31,29 @@ Handles:
 - OpenCV / FFmpeg
 
 ## Project Structure
+
+SmartDoorbell_v2
+│
+├── cloud_backend
+│ └── FastAPI server and dashboard
+│
+├── device_firmware
+│ └── Raspberry Pi camera + sensor logic
+│
+└── README.md
+
+
+## Status
+
+Prototype development.
+
+Future improvements:
+- secure login system
+- event notifications
+- mobile integration
+- improved video pipeline
+
+## Author
+
+Kein Lika
+
