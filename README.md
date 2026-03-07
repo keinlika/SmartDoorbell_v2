@@ -32,15 +32,17 @@ Handles:
 
 ## Project Structure
 
-SmartDoorbell_v2
+```
+SmartDoorbell_v2/
 │
-├── cloud_backend
-│ └── FastAPI server and dashboard
+├── cloud_backend/
+│   └── FastAPI server and dashboard
 │
-├── device_firmware
-│ └── Raspberry Pi camera + sensor logic
+├── device_firmware/
+│   └── Raspberry Pi camera + sensor logic
 │
 └── README.md
+```
 
 
 ## Status
