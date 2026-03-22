@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Login | Smart Doorbell</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-slate-950 flex items-center justify-center h-screen font-sans">
+
+  <div class="bg-slate-900 border border-slate-800 p-8 rounded-2xl shadow-2xl w-full max-w-md transition-all">
+    <div class="flex flex-col items-center mb-8">
+      <div class="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center mb-4 shadow-[0_0_15px_rgba(37,99,235,0.4)]">
+        <i class="fa-solid fa-shield-halved text-white text-xl"></i>
+      </div>
+      <h1 class="text-2xl font-bold text-white tracking-wide">Security Console</h1>
+      <p class="text-slate-400 text-sm mt-1">Authenticate to access live feeds</p>
+    </div>
+
+    <form id="login-form" class="space-y-5">
+      <div>
+        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Email</label>
+        <input type="email" id="email" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors">
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Password</label>
+        <input type="password" id="password" required class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors">
+      </div>
+
+      <button type="submit" id="submit-btn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg transition-all shadow-md mt-2 flex justify-center items-center gap-2">
+        <span>Sign In</span>
+      </button>
+    </form>
+
+    <div id="error-msg" class="mt-4 text-center text-sm text-red-400 hidden bg-red-500/10 border border-red-500/20 py-2 rounded-lg"></div>
+  </div>
+
+  <script>
+	    const SUPABASE_URL = "https://yxxbvqhczswkppwepkib.supabase.co";
+	    const SUPABASE_ANON_KEY = "sb_publishable_poiDIRCc2Izbik1RaTZ8vw_lWdumSCH";
+	const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+	  auth: {
+	    storage: window.sessionStorage,
+	    persistSession: true
+	}
+	});
+
+    const loginForm = document.getElementById('login-form');
+    const errorMsg = document.getElementById('error-msg');
+    const submitBtn = document.getElementById('submit-btn');
+
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      errorMsg.classList.add('hidden');
+      submitBtn.innerHTML = `<span>Authenticating...</span>`;
+
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+
+      try {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+          email,
+          password
+        });
+
+        if (error) {
+          errorMsg.innerText = error.message;
+          errorMsg.classList.remove('hidden');
+          submitBtn.innerHTML = `<span>Sign In</span>`;
+          return;
+        }
+
+        const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+
+        if (sessionError || !sessionData.session) {
+          errorMsg.innerText = "Login succeeded, but no session was found.";
+          errorMsg.classList.remove('hidden');
+          submitBtn.innerHTML = `<span>Sign In</span>`;
+          return;
+        }
+
+        window.location.href = "/";
+      } catch (err) {
+        console.error("UNEXPECTED ERROR:", err);
+        errorMsg.innerText = "Unexpected error. Check browser console.";
+        errorMsg.classList.remove('hidden');
+        submitBtn.innerHTML = `<span>Sign In</span>`;
+      }
+    });
+  </script>
+</body>
+</html>

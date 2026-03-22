@@ -1,247 +1,379 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Smart Doorbell | Live Console</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
-  <script>
-    // Tell Tailwind to use class-based dark mode
-    tailwind.config = {
-      darkMode: 'class',
-    }
-  </script>
-  <style>
-    /* Scrollbar that adapts to both modes */
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-    .dark ::-webkit-scrollbar-thumb { background: #475569; }
-    ::-webkit-scrollbar-track { background: transparent; }
-  </style>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        const SUPABASE_URL = "https://yxxbvqhczswkppwepkib.supabase.co";
+        const SUPABASE_ANON_KEY = "sb_publishable_poiDIRCc2Izbik1RaTZ8vw_lWdumSCH";
+        
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+            auth: { storage: window.sessionStorage }
+        });
+
+        document.addEventListener("DOMContentLoaded", async () => {
+            try {
+                const { data, error } = await supabaseClient.auth.getSession();
+                console.log("INDEX SESSION:", data, error);
+                
+                if (error || !data.session) {
+                    window.location.replace("/static/login.html");
+                    return;
+                }
+                console.log("User authenticated:", data.session.user.email);
+
+	// User is verified! Now we load the heavy stuff:
+	        fetchHistory();
+	        refreshStream();
+	        connect();
+                
+            } catch (err) {
+                console.error("Auth Guard Error:", err);
+                window.location.replace("/static/login.html");
+            }
+        });
+
+        async function logOut() {
+            await supabaseClient.auth.signOut();
+            window.location.replace("/static/login.html");
+        }
+    </script>
+    
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Smart Doorbell | Live Console</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
+    <script>
+        tailwind.config = { darkMode: 'class', }
+    </script>
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .dark ::-webkit-scrollbar-thumb { background: #475569; }
+        ::-webkit-scrollbar-track { background: transparent; }
+    </style>
 </head>
 <body class="bg-gray-50 dark:bg-slate-950 text-gray-800 dark:text-slate-200 font-sans h-screen w-screen overflow-hidden flex flex-col transition-colors duration-200">
-
-  <header class="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 h-16 flex items-center justify-between px-6 z-20 shrink-0 shadow-sm transition-colors duration-200">
-    <div class="flex items-center gap-4">
-      <div class="flex items-center justify-center w-10 h-10 bg-blue-600 rounded-xl text-white shadow-md">
-        <i class="fa-solid fa-shield-halved text-xl"></i>
-      </div>
-      <div>
-        <h1 class="font-bold text-gray-900 dark:text-white text-lg leading-tight">Front Door</h1>
-        <div class="flex items-center gap-2">
-          <span id="status-badge" class="flex items-center gap-1 text-[11px] font-semibold tracking-wide bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 px-2 py-0.5 rounded-full uppercase">
-            <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span> Connecting...
-          </span>
+    <header class="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 h-16 flex items-center justify-between px-6 z-20 shrink-0 shadow-sm transition-colors duration-200">
+        <div class="flex items-center gap-4">
+            <div class="flex items-center justify-center w-10 h-10 bg-blue-600 rounded-xl text-white shadow-md">
+                <i class="fa-solid fa-shield-halved text-xl"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-gray-900 dark:text-white text-lg leading-tight">Front Door</h1>
+                <div class="flex items-center gap-2">
+                    <span id="status-badge" class="flex items-center gap-1 text-[11px] font-semibold tracking-wide bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 px-2 py-0.5 rounded-full uppercase">
+                        <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
+                        Connecting...
+                    </span>
+                </div>
+            </div>
         </div>
-      </div>
-    </div>
+        <div class="flex items-center gap-3">
+            <button onclick="toggleTheme()" class="w-10 h-10 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-gray-600 dark:text-slate-300 transition-colors">
+                <i id="theme-icon" class="fa-solid fa-moon"></i>
+            </button>
+            <button onclick="triggerManualRecord()" class="bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-600 dark:hover:bg-red-500 hover:text-white border border-red-200 dark:border-red-500/30 font-semibold text-sm px-4 py-2 rounded-lg transition-all shadow-sm flex items-center gap-2 cursor-pointer">
+                <i class="fa-solid fa-video"></i>
+                <span class="hidden sm:inline">Record Clip</span>
+            </button>
+            <button onclick="logOut()" class="w-10 h-10 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-red-100 dark:bg-slate-800 dark:hover:bg-red-500/20 text-gray-600 hover:text-red-600 dark:text-slate-300 dark:hover:text-red-400 transition-colors" title="Log Out">
+                <i class="fa-solid fa-arrow-right-from-bracket"></i>
+            </button>
+        </div>
+    </header>
 
-    <div class="flex items-center gap-3">
-      <button onclick="toggleTheme()" class="w-10 h-10 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-gray-600 dark:text-slate-300 transition-colors">
-        <i id="theme-icon" class="fa-solid fa-moon"></i>
-      </button>
+    <main class="flex-1 p-4 lg:p-6 flex flex-col gap-6 min-h-0 overflow-y-auto w-full max-w-7xl mx-auto">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[55vh] shrink-0">
+            <div class="lg:col-span-2 flex flex-col bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden relative transition-colors duration-200">
+                <div class="px-4 py-3 border-b border-gray-100 dark:border-slate-800 flex justify-between items-center bg-gray-50/50 dark:bg-slate-800/40">
+                    <span class="font-medium text-sm text-gray-600 dark:text-slate-300 flex items-center gap-2">
+                        <i class="fa-solid fa-circle text-red-500 text-[8px] animate-pulse"></i>
+                        Live View
+                    </span>
+                    <span id="timestamp-ui" class="text-sm text-gray-500 dark:text-slate-400 font-medium">00:00:00</span>
+                </div>
+                <div class="flex-1 bg-black relative flex items-center justify-center">
+                    <img id="live-stream" src="" class="w-full h-full object-contain z-10" alt="Live Feed">
+                    
+                    <div id="recording-overlay" class="absolute inset-0 z-40 bg-gray-900/60 dark:bg-slate-950/70 backdrop-blur-sm hidden flex-col items-center justify-center">
+                        <i class="fa-solid fa-circle-notch fa-spin text-white dark:text-blue-500 text-4xl mb-3"></i>
+                        <span class="text-white font-medium tracking-wide">Saving Video Clip...</span>
+                    </div>
+                </div>
+            </div>
 
-      <button onclick="triggerManualRecord()" class="bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-600 dark:hover:bg-red-500 hover:text-white border border-red-200 dark:border-red-500/30 font-semibold text-sm px-4 py-2 rounded-lg transition-all shadow-sm flex items-center gap-2 cursor-pointer">
-        <i class="fa-solid fa-video"></i> <span class="hidden sm:inline">Record Clip</span>
-      </button>
-    </div>
-  </header>
+            <div class="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl shadow-sm flex flex-col min-h-0 overflow-hidden transition-colors duration-200">
+                <div class="px-4 py-3 border-b border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/40 flex justify-between items-center shrink-0">
+                    <h2 class="font-semibold text-gray-800 dark:text-slate-200 text-sm">Activity Feed</h2>
+                    <i class="fa-solid fa-list-ul text-gray-400 dark:text-slate-500"></i>
+                </div>
+                <div id="log-container" class="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/30 dark:bg-slate-900/50">
+                </div>
+            </div>
+        </div>
 
-  <main class="flex-1 p-4 lg:p-6 flex flex-col gap-6 min-h-0 overflow-y-auto w-full max-w-7xl mx-auto">
-    
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[55vh] shrink-0">
-      
-      <div class="lg:col-span-2 flex flex-col bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden relative transition-colors duration-200">
+        <div class="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl shadow-sm flex flex-col p-5 shrink-0 transition-colors duration-200">
+            <h2 class="font-semibold text-gray-800 dark:text-slate-200 text-sm mb-4">Recent Captures</h2>
+            <div id="recordings-gallery" class="flex overflow-x-auto gap-4 pb-2">
+                <div class="text-gray-400 dark:text-slate-500 text-sm py-4 w-full text-center bg-gray-50 dark:bg-slate-800/30 rounded-xl border border-dashed border-gray-200 dark:border-slate-700" id="no-clips-msg">
+                    No video clips captured yet today.
+                </div>
+            </div>
+        </div>
+    </main>
+
+<script>
+        // --- THEME TOGGLE LOGIC ---
+        const htmlEl = document.documentElement;
+        const themeIcon = document.getElementById('theme-icon');
+        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            htmlEl.classList.add('dark');
+            themeIcon.className = 'fa-solid fa-sun';
+        } else {
+            htmlEl.classList.remove('dark');
+            themeIcon.className = 'fa-solid fa-moon';
+        }
+        function toggleTheme() {
+            if (htmlEl.classList.contains('dark')) {
+                htmlEl.classList.remove('dark');
+                localStorage.theme = 'light';
+                themeIcon.className = 'fa-solid fa-moon';
+            } else {
+                htmlEl.classList.add('dark');
+                localStorage.theme = 'dark';
+                themeIcon.className = 'fa-solid fa-sun';
+            }
+        }
+
+        // --- CONFIG ---
+        // Serve this file from FastAPI (uvicorn main:app --port 8000), NOT python -m http.server.
+        // FastAPI already mounts /static — open http://<pi-ip>:8000 directly in the browser.
+        const API_PORT = window.location.port ? parseInt(window.location.port) : 8000;
+        const STREAM_PORT = 8001;
+
+        const apiBase = `${window.location.protocol}//${window.location.hostname}:${API_PORT}`;
+        const wsProto = window.location.protocol === "https:" ? "wss" : "ws";
+        const wsUrl = `${wsProto}://${window.location.hostname}:${API_PORT}/ws`;
         
-        <div class="px-4 py-3 border-b border-gray-100 dark:border-slate-800 flex justify-between items-center bg-gray-50/50 dark:bg-slate-800/40">
-          <span class="font-medium text-sm text-gray-600 dark:text-slate-300 flex items-center gap-2">
-            <i class="fa-solid fa-circle text-red-500 text-[8px] animate-pulse"></i> Live View
-          </span>
-          <span id="timestamp-ui" class="text-sm text-gray-500 dark:text-slate-400 font-medium">00:00:00</span>
-        </div>
-
-        <div class="flex-1 bg-black relative flex items-center justify-center">
-          <img id="live-stream" src="" class="w-full h-full object-contain z-10" alt="Live Feed" onerror="this.src=''; this.alt='CAMERA OFFLINE'; this.style.color='#9ca3af';">
-          
-          <div id="recording-overlay" class="absolute inset-0 z-40 bg-gray-900/60 dark:bg-slate-950/70 backdrop-blur-sm hidden flex-col items-center justify-center">
-            <i class="fa-solid fa-circle-notch fa-spin text-white dark:text-blue-500 text-4xl mb-3"></i>
-            <span class="text-white font-medium tracking-wide">Saving Video Clip...</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl shadow-sm flex flex-col min-h-0 overflow-hidden transition-colors duration-200">
-        <div class="px-4 py-3 border-b border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/40 flex justify-between items-center shrink-0">
-          <h2 class="font-semibold text-gray-800 dark:text-slate-200 text-sm">Activity Feed</h2>
-          <i class="fa-solid fa-list-ul text-gray-400 dark:text-slate-500"></i>
-        </div>            
-        <div id="log-container" class="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/30 dark:bg-slate-900/50">
-          </div>
-      </div>
-    </div>
-
-    <div class="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl shadow-sm flex flex-col p-5 shrink-0 transition-colors duration-200">
-      <h2 class="font-semibold text-gray-800 dark:text-slate-200 text-sm mb-4">Recent Captures</h2>
-      <div id="recordings-gallery" class="flex overflow-x-auto gap-4 pb-2">
-        <div class="text-gray-400 dark:text-slate-500 text-sm py-4 w-full text-center bg-gray-50 dark:bg-slate-800/30 rounded-xl border border-dashed border-gray-200 dark:border-slate-700" id="no-clips-msg">
-          No video clips captured yet today.
-        </div>
-      </div>
-    </div>
-
-  </main>
-
-  <script>
-    // --- THEME TOGGLE LOGIC ---
-    const htmlEl = document.documentElement;
-    const themeIcon = document.getElementById('theme-icon');
-
-    // On load, check if user has a saved preference or matches system dark mode
-    if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-      htmlEl.classList.add('dark');
-      themeIcon.className = 'fa-solid fa-sun';
-    } else {
-      htmlEl.classList.remove('dark');
-      themeIcon.className = 'fa-solid fa-moon';
-    }
-
-    function toggleTheme() {
-      if (htmlEl.classList.contains('dark')) {
-        htmlEl.classList.remove('dark');
-        localStorage.theme = 'light';
-        themeIcon.className = 'fa-solid fa-moon';
-      } else {
-        htmlEl.classList.add('dark');
-        localStorage.theme = 'dark';
-        themeIcon.className = 'fa-solid fa-sun';
-      }
-    }
-
-    // --- CONFIG ---
-    const WS_PORT = 8000;      
-    const STREAM_PORT = 8001; 
-
-    const wsProto = window.location.protocol === "https:" ? "wss" : "ws";
-    const wsUrl = `${wsProto}://${window.location.hostname}:${WS_PORT}/ws`;
-
-    function refreshStream() {
-      const streamImg = document.getElementById('live-stream');
-      const timestamp = new Date().getTime(); 
-      streamImg.src = `http://${window.location.hostname}:${STREAM_PORT}/stream?t=${timestamp}`;
-    }
-
-    refreshStream();
-
-    // --- UI REFS ---
-    const logContainer = document.getElementById('log-container');
-    const statusBadge = document.getElementById('status-badge');
-    const gallery = document.getElementById('recordings-gallery');
-    const noClipsMsg = document.getElementById('no-clips-msg');
-    const recordingOverlay = document.getElementById('recording-overlay');
-
-    let globalSocket = null;
-
-    function addLog(title, subtitle, iconClass, lightColorClass, darkColorClass) {
-      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const div = document.createElement('div');
-      
-      div.className = "bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 p-3 rounded-xl shadow-sm flex items-start gap-3 transition-colors duration-200";
-      div.innerHTML = `
-        <div class="mt-0.5 w-8 h-8 rounded-full flex items-center justify-center ${lightColorClass} dark:${darkColorClass} shrink-0">
-          <i class="${iconClass} text-sm"></i>
-        </div>
-        <div class="flex-1 min-w-0">
-          <p class="text-sm font-semibold text-gray-900 dark:text-slate-200">${title}</p>
-          <p class="text-xs text-gray-500 dark:text-slate-400 truncate mt-0.5">${subtitle}</p>
-        </div>
-        <span class="text-[10px] font-medium text-gray-400 dark:text-slate-500 shrink-0 mt-1">${time}</span>
-      `;
-      logContainer.prepend(div);
-
-      if (logContainer.children.length > 15) {
-        logContainer.removeChild(logContainer.lastChild);
-      }
-    }
-
-    function connect() {
-      globalSocket = new WebSocket(wsUrl);
-
-      globalSocket.onopen = () => {
-        statusBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-green-500 dark:bg-emerald-400 shadow-[0_0_5px_#22c55e]"></span> Live`;
-        statusBadge.className = "flex items-center gap-1 text-[11px] font-semibold tracking-wide bg-green-50 dark:bg-emerald-500/10 text-green-700 dark:text-emerald-400 px-2 py-0.5 rounded-full uppercase border border-green-200 dark:border-emerald-500/20";
-        addLog("System Online", "Connection to doorbell established.", "fa-solid fa-check", "bg-green-100 text-green-600", "bg-emerald-500/20 text-emerald-400");
-      };
-
-      globalSocket.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-
-        if (data.event === "recording_started") {
-          const type = data.type === "sensor" ? "Motion Detected" : "Manual Recording";
-          addLog(type, "Camera is saving a video clip.", "fa-solid fa-person-walking", "bg-orange-100 text-orange-600", "bg-orange-500/20 text-orange-400");
-          recordingOverlay.classList.remove('hidden');
+        function refreshStream() {
+            const streamImg = document.getElementById('live-stream');
+            const timestamp = new Date().getTime();
+            streamImg.src = `http://${window.location.hostname}:${STREAM_PORT}/stream?t=${timestamp}`;
         }
 
-        if (data.event === "motion" || data.event === "manual_record_complete") {
-          recordingOverlay.classList.add('hidden');
-          refreshStream(); 
+        // --- UI REFS ---
+        const logContainer = document.getElementById('log-container');
+        const statusBadge = document.getElementById('status-badge');
+        const gallery = document.getElementById('recordings-gallery');
+        const noClipsMsg = document.getElementById('no-clips-msg');
+        const recordingOverlay = document.getElementById('recording-overlay');
+        let globalSocket = null;
 
-          if (data.video_url) {
-            addLog("Clip Uploaded", "Video securely saved to cloud.", "fa-solid fa-cloud-arrow-up", "bg-blue-100 text-blue-600", "bg-blue-500/20 text-blue-400");
-            addVideoToGallery(data.video_url, data.timestamp);
-          }
+        // --- UPDATED: FETCH DB HISTORY (Now passes event ID for deletion) ---
+        async function fetchHistory() {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('events')
+                    .select('*')
+                    .eq('device_id', '00000000165a568e')
+                    .order('created_at', { ascending: false })
+                    .limit(10);
+
+                if (error) throw error;
+
+                if (data && data.length > 0) {
+                    data.reverse().forEach(event => {
+                        const dateObj = new Date(event.created_at);
+                        const formattedTime = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        addVideoToGallery(event.video_url, formattedTime, event.event_type, event.id);
+                    });
+                }
+            } catch (err) {
+                console.error("Failed to load history:", err);
+            }
         }
-      };
 
-      globalSocket.onclose = () => {
-        statusBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-red-500 dark:bg-red-500"></span> Offline`;
-        statusBadge.className = "flex items-center gap-1 text-[11px] font-semibold tracking-wide bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 px-2 py-0.5 rounded-full uppercase border border-red-200 dark:border-red-500/20";
-        addLog("Connection Lost", "Attempting to reconnect...", "fa-solid fa-triangle-exclamation", "bg-red-100 text-red-600", "bg-red-500/20 text-red-400");
-        setTimeout(connect, 3000);
-      };
-    }
-
-    function triggerManualRecord() {
-      if (globalSocket && globalSocket.readyState === WebSocket.OPEN) {
-        globalSocket.send(JSON.stringify({ action: "manual_record" }));
-      }
-    }
-
-    function addVideoToGallery(url, timestamp) {
-      if (noClipsMsg) noClipsMsg.style.display = 'none';
-
-      let cleanTime = timestamp;
-      if(timestamp.includes('_')) {
-        const parts = timestamp.split('_');
-        const d = parts[0]; 
-        const t = parts[1];
-        if (d.length === 8 && t.length === 6) {
-           cleanTime = `${d.substring(4,6)}/${d.substring(6,8)} at ${t.substring(0,2)}:${t.substring(2,4)}`;
+        // --- KEEPS YOUR LOGGING SYSTEM WORKING ---
+        function addLog(title, subtitle, iconClass, lightColorClass, darkColorClass) {
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const div = document.createElement('div');
+            div.className = "bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 p-3 rounded-xl shadow-sm flex items-start gap-3 transition-colors duration-200";
+            div.innerHTML = `
+                <div class="mt-0.5 w-8 h-8 rounded-full flex items-center justify-center ${lightColorClass} dark:${darkColorClass} shrink-0">
+                    <i class="${iconClass} text-sm"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-semibold text-gray-900 dark:text-slate-200">${title}</p>
+                    <p class="text-xs text-gray-500 dark:text-slate-400 truncate mt-0.5">${subtitle}</p>
+                </div>
+                <span class="text-[10px] font-medium text-gray-400 dark:text-slate-500 shrink-0 mt-1">${time}</span>
+            `;
+            logContainer.prepend(div);
+            if (logContainer.children.length > 15) {
+                logContainer.removeChild(logContainer.lastChild);
+            }
         }
-      }
 
-      const videoWrapper = document.createElement('div');
-      videoWrapper.className = "flex-none w-72 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm flex flex-col group transition-colors duration-200";
-      
-      videoWrapper.innerHTML = `
-        <div class="relative w-full bg-gray-100 dark:bg-black flex items-center justify-center overflow-hidden border-b border-gray-200 dark:border-slate-700">
-          <video class="w-full h-auto max-h-40 object-cover opacity-100 dark:opacity-90 dark:group-hover:opacity-100 transition-opacity" controls preload="metadata">
-            <source src="${url}" type="video/mp4">
-          </video>
-        </div>
-        <div class="px-3 py-2 flex justify-between items-center bg-gray-50 dark:bg-slate-800 group-hover:bg-blue-50 dark:group-hover:bg-slate-700 transition-colors">
-          <span class="text-xs font-semibold text-gray-700 dark:text-slate-300 flex items-center gap-1.5"><i class="fa-solid fa-video text-gray-400 dark:text-slate-400"></i> Event Capture</span>
-          <span class="text-[10px] text-gray-500 dark:text-slate-400 font-medium">${cleanTime}</span>
-        </div>
-      `;
-      gallery.prepend(videoWrapper);
-    }
+        let reconnectTimer = null;
 
-    setInterval(() => {
-      document.getElementById('timestamp-ui').innerText = new Date().toLocaleTimeString();
-    }, 1000);
+        function connect() {
+            // Prevent stacking multiple socket instances — clear any pending reconnect
+            // and close an existing socket silently before opening a new one.
+            if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+            if (globalSocket && globalSocket.readyState !== WebSocket.CLOSED) {
+                globalSocket.onclose = null; // detach handler so closing doesn't re-trigger reconnect
+                globalSocket.close();
+            }
 
-    connect();
-  </script>
+            globalSocket = new WebSocket(wsUrl);
+
+            globalSocket.onopen = () => {
+                statusBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-green-500 dark:bg-emerald-400 shadow-[0_0_5px_#22c55e]"></span> Live`;
+                statusBadge.className = "flex items-center gap-1 text-[11px] font-semibold tracking-wide bg-green-50 dark:bg-emerald-500/10 text-green-700 dark:text-emerald-400 px-2 py-0.5 rounded-full uppercase border border-green-200 dark:border-emerald-500/20";
+                addLog("System Online", "Connection to doorbell established.", "fa-solid fa-check", "bg-green-100 text-green-600", "bg-emerald-500/20 text-emerald-400");
+            };
+
+            globalSocket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+
+                if (data.event === "recording_started") {
+                    const type = data.type === "sensor" ? "Motion Detected" : "Manual Recording";
+                    addLog(type, "Camera is saving a video clip.", "fa-solid fa-person-walking", "bg-orange-100 text-orange-600", "bg-orange-500/20 text-orange-400");
+                    recordingOverlay.classList.remove('hidden');
+                }
+
+                if (data.event === "motion" || data.event === "manual_record_complete") {
+                    recordingOverlay.classList.add('hidden');
+                    if (data.video_url) {
+                        addLog("Clip Uploaded", "Video securely saved to cloud.", "fa-solid fa-cloud-arrow-up", "bg-blue-100 text-blue-600", "bg-blue-500/20 text-blue-400");
+                        addVideoToGallery(data.video_url, data.timestamp, data.event === "motion" ? "motion" : "manual", null);
+                    }
+                }
+            };
+
+            globalSocket.onclose = () => {
+                // Use a subtle "reconnecting" state — don't blast "Offline" and log
+                // an error for routine drops (e.g. brief server hiccup after a delete).
+                // Only update the badge; skip the error log to avoid UI noise.
+                statusBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse"></span> Reconnecting`;
+                statusBadge.className = "flex items-center gap-1 text-[11px] font-semibold tracking-wide bg-yellow-50 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 px-2 py-0.5 rounded-full uppercase border border-yellow-200 dark:border-yellow-500/20";
+                reconnectTimer = setTimeout(connect, 2000);
+            };
+        }
+
+        function triggerManualRecord() {
+            if (globalSocket && globalSocket.readyState === WebSocket.OPEN) {
+                globalSocket.send(JSON.stringify({ action: "manual_record" }));
+            }
+        }
+
+        // --- UPDATED: ADD VIDEO (Now with 16:9 layout and Trash Can icons) ---
+        function addVideoToGallery(url, timestamp, eventType = "motion", eventId = null) {
+            if (noClipsMsg) noClipsMsg.style.display = 'none';
+            
+            let cleanTime = timestamp;
+            if(timestamp.includes('_') && timestamp.length >= 15) {
+                const parts = timestamp.split('_');
+                const d = parts[0];
+                const t = parts[1];
+                if (d.length === 8 && t.length === 6) {
+                    cleanTime = `${d.substring(4,6)}/${d.substring(6,8)} at ${t.substring(0,2)}:${t.substring(2,4)}`;
+                }
+            }
+
+            const iconClass = eventType === "manual" ? "fa-hand-pointer" : "fa-person-walking";
+            const typeLabel = eventType === "manual" ? "Manual Record" : "Motion Event";
+
+	const actionBtnHtml = eventId 
+	    ? `<button onclick="deleteEvent(${eventId}, this)" class="text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 w-8 h-8 flex items-center justify-center rounded-lg transition-all" title="Delete Clip"><i class="fa-solid fa-trash-can"></i></button>`
+	    : `<button disabled class="text-gray-300 dark:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg cursor-default" title="Reload page to manage this clip"><i class="fa-solid fa-arrows-rotate"></i></button>`;
+
+            const videoWrapper = document.createElement('div');
+            videoWrapper.className = "flex-none w-72 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm flex flex-col group transition-colors duration-200";
+            
+            videoWrapper.innerHTML = `
+                <div class="relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden border-b border-gray-200 dark:border-slate-700">
+                    <video class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" controls preload="metadata">
+                        <source src="${url}" type="video/mp4">
+                    </video>
+                </div>
+                <div class="px-3 py-2 flex justify-between items-center bg-gray-50 dark:bg-slate-800 transition-colors">
+                    <div class="flex flex-col">
+                        <span class="text-xs font-semibold text-gray-700 dark:text-slate-300 flex items-center gap-1.5">
+                            <i class="fa-solid ${iconClass} text-gray-400 dark:text-slate-400"></i> ${typeLabel}
+                        </span>
+                        <span class="text-[10px] text-gray-500 dark:text-slate-400 font-medium">${cleanTime}</span>
+                    </div>
+                    ${actionBtnHtml}
+                </div>
+            `;
+            gallery.prepend(videoWrapper);
+        }
+
+        // FIX: Remove the card from the DOM directly instead of reloading the page.
+        // Two-step inline delete — no blocking confirm() dialog.
+        // confirm() freezes JS, which can confuse the Supabase session and
+        // cause the auth guard to redirect on resume.
+        function deleteEvent(eventId, btnEl = null) {
+            if (!btnEl) return;
+
+            // First click: turn button into a red "Sure?" confirmation.
+            // Second click within 3s: execute the delete.
+            if (btnEl.dataset.confirming !== "true") {
+                btnEl.dataset.confirming = "true";
+                btnEl.innerHTML = '<i class="fa-solid fa-check text-red-500"></i>';
+                btnEl.title = "Click again to confirm delete";
+                btnEl.classList.add("bg-red-50", "dark:bg-red-500/10");
+                setTimeout(() => {
+                    if (btnEl.dataset.confirming === "true") {
+                        btnEl.dataset.confirming = "false";
+                        btnEl.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
+                        btnEl.title = "Delete Clip";
+                        btnEl.classList.remove("bg-red-50", "dark:bg-red-500/10");
+                    }
+                }, 3000);
+                return;
+            }
+
+            // Second click — execute delete.
+            btnEl.dataset.confirming = "false";
+            btnEl.disabled = true;
+            btnEl.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin text-red-400"></i>';
+
+            fetch(`${apiBase}/api/events/${eventId}`, { method: "DELETE" })
+                .then(async response => {
+                    const resultText = await response.text();
+                    if (!response.ok) {
+                        btnEl.disabled = false;
+                        btnEl.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
+                        addLog("Delete Failed", `Server error: ${response.status}`, "fa-solid fa-triangle-exclamation", "bg-red-100 text-red-600", "bg-red-500/20 text-red-400");
+                        return;
+                    }
+                    const card = btnEl.closest(".flex-none");
+                    if (card) {
+                        card.style.transition = "opacity 0.2s";
+                        card.style.opacity = "0";
+                        setTimeout(() => {
+                            card.remove();
+                            if (gallery.querySelectorAll(".flex-none").length === 0 && noClipsMsg) {
+                                noClipsMsg.style.display = "";
+                            }
+                        }, 200);
+                    }
+                    addLog("Clip Deleted", `Event #${eventId} removed from cloud.`, "fa-solid fa-trash-can", "bg-red-100 text-red-600", "bg-red-500/20 text-red-400");
+                })
+                .catch(err => {
+                    btnEl.disabled = false;
+                    btnEl.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
+                    addLog("Delete Failed", `Network error: ${err.message}`, "fa-solid fa-triangle-exclamation", "bg-red-100 text-red-600", "bg-red-500/20 text-red-400");
+                });
+        }
+
+        setInterval(() => {
+            document.getElementById('timestamp-ui').innerText = new Date().toLocaleTimeString();
+        }, 1000);
+
+    </script>
 </body>
 </html>

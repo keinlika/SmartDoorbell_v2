@@ -5,7 +5,7 @@ doorbell_connect.py (Hot-Swap Architecture)
 Architecture:
 - Directly reads from physical camera /dev/video0.
 - Serves an optimized MJPEG stream (640x360 @ 15fps) via Flask on port 8001.
-- On motion/manual trigger: Pauses stream, releases camera, lets FFmpeg record 
+- On motion/manual trigger: Pauses stream, releases camera, lets FFmpeg record
   high-quality video, then re-acquires the camera.
 """
 
@@ -25,12 +25,11 @@ from flask import Flask, Response
 # ----------------------------
 # CONFIGURATION
 # ----------------------------
-WS_URI = "ws://localhost:8000/ws"
-UPLOAD_URL = "http://localhost:8000/upload"
+WS_URI = "ws://192.168.1.232:8000/ws"
+UPLOAD_URL = "http://192.168.1.232:8000/upload"
 SENSOR_PIN = 4
 VIDEO_DURATION = 5  # seconds
 
-# Direct physical camera
 PHYSICAL_CAM_INDEX = 0
 PHYSICAL_CAM_PATH = "/dev/video0"
 AUDIO_DEV = "plughw:1,0"
@@ -52,20 +51,30 @@ GPIO.setup(SENSOR_PIN, GPIO.IN)
 # ----------------------------
 app = Flask(__name__)
 
-def init_camera():
+def init_camera(retries: int = 5, delay: float = 1.5):
     global cap
-    cap = cv2.VideoCapture(PHYSICAL_CAM_INDEX)
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    for attempt in range(1, retries + 1):
+        new_cap = cv2.VideoCapture(PHYSICAL_CAM_INDEX)
+        new_cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        if new_cap.isOpened():
+            ok, test_frame = new_cap.read()
+            if ok and test_frame is not None:
+                cap = new_cap
+                print(f"   [Camera] Ready (attempt {attempt}/{retries})")
+                return
+            else:
+                new_cap.release()
+        print(f"   [Camera] Not ready yet, retrying in {delay}s... ({attempt}/{retries})")
+        time.sleep(delay)
+    print("   [Camera] WARNING: Could not open camera at startup. Stream will retry.")
 
 init_camera()
 
 def generate_frames():
-    """Reads frames from OpenCV, optimizes them, and streams MJPEG."""
     global cap
     frame_counter = 0
-    
+
     while True:
-        # 1. HOT-SWAP PAUSE: If recording, sleep and yield nothing.
         if is_recording.is_set():
             time.sleep(0.5)
             continue
@@ -77,19 +86,19 @@ def generate_frames():
                     success, frame = cap.retrieve()
             else:
                 success = False
+                init_camera(retries=1, delay=0)
 
         if not success or frame is None:
-            time.sleep(0.1)
+            time.sleep(2.0)
             continue
 
-        # 2. OPTIMIZATION: 15 FPS and 360p
         frame_counter += 1
         if frame_counter % 2 != 0:
             continue
-            
+
         frame_resized = cv2.resize(frame, (640, 360))
         ok, buffer = cv2.imencode(".jpg", frame_resized, [cv2.IMWRITE_JPEG_QUALITY, 65])
-        
+
         if not ok:
             continue
 
@@ -112,49 +121,43 @@ threading.Thread(target=start_flask, daemon=True).start()
 # ----------------------------
 class VideoManager:
     def __init__(self):
-        # Using explicit mjpeg input format for the physical camera to ensure high framerate
         self.cmd_template = (
             "ffmpeg -hide_banner -loglevel warning -y "
+            "-thread_queue_size 512 "
             f"-f v4l2 -input_format mjpeg -video_size 1280x720 -framerate 30 -i {PHYSICAL_CAM_PATH} "
-            f"-f alsa -ac 1 -i {AUDIO_DEV} "
-            "-c:v libx264 -preset ultrafast -c:a aac "
+            "-thread_queue_size 512 "
+            f"-f alsa -channel_layout stereo -i {AUDIO_DEV} "
+            "-c:v libx264 -preset superfast -crf 23 -c:a aac -b:a 128k "
             "-t {} {}"
         )
-        print("   [System] Camera Configured: Direct Physical Hot-Swap")
+        print("   [System] Camera Configured: 720p Hot-Swap")
 
     def record_clip(self, filename: str) -> bool:
         global cap
-        print(f"   [Camera] Recording {VIDEO_DURATION}s clip...")
+        print(f"   [Camera] Starting recording to {filename}...")
 
-        # --- HARDWARE HANDOFF (DROP) ---
         is_recording.set()
         with cap_lock:
             if cap is not None:
                 cap.release()
-        time.sleep(0.5) # Give Linux half a second to fully free /dev/video0
+        time.sleep(1.0)
 
-        # --- RECORDING ---
         try:
             full_command = self.cmd_template.format(VIDEO_DURATION, filename)
-            subprocess.run(
-                full_command, 
-                shell=True, 
-                check=False
-            )
+            subprocess.run(full_command, shell=True, check=False)
             success = os.path.exists(filename) and os.path.getsize(filename) > 1000
-            
+
             if success:
                 print(f"   [Camera] CLIP SAVED: {filename}")
             else:
                 print("   [Camera Error] Recording failed (File empty).")
             return success
-            
+
         except Exception as e:
             print(f"   [Camera Crash] {e}")
             return False
-            
+
         finally:
-            # --- HARDWARE HANDOFF (RECLAIM) ---
             with cap_lock:
                 init_camera()
             is_recording.clear()
@@ -166,7 +169,7 @@ class VideoManager:
                 file_bytes = f.read()
             files = {"file": (os.path.basename(filename), file_bytes, "video/mp4")}
             response = requests.post(UPLOAD_URL, files=files, timeout=30)
-            
+
             if response.status_code == 200:
                 return response.json().get("url")
             print(f"   [Cloud Error] {response.status_code}: {response.text}")
@@ -180,18 +183,24 @@ recording_lock = asyncio.Lock()
 
 async def execute_recording(websocket, trigger_type: str):
     async with recording_lock:
+        loop = asyncio.get_event_loop()
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         print(f"\n!!! {trigger_type.upper()} RECORDING at {timestamp} !!!")
         filename = f"{trigger_type}_{timestamp}.mp4"
 
         try:
-            await websocket.send(json.dumps({"event": "recording_started", "type": trigger_type, "timestamp": timestamp}))
+            await websocket.send(json.dumps({
+                "event": "recording_started",
+                "type": trigger_type,
+                "timestamp": timestamp
+            }))
         except Exception:
             pass
 
         video_url = None
-        if cam.record_clip(filename):
-            video_url = cam.upload_to_cloud(filename)
+        success = await loop.run_in_executor(None, cam.record_clip, filename)
+        if success:
+            video_url = await loop.run_in_executor(None, cam.upload_to_cloud, filename)
 
         try:
             os.remove(filename)
@@ -217,7 +226,7 @@ async def listen_to_sensor(websocket):
     while True:
         if GPIO.input(SENSOR_PIN):
             if not is_motion_active:
-                await execute_recording(websocket, "sensor")
+                asyncio.create_task(execute_recording(websocket, "sensor"))
                 is_motion_active = True
         else:
             if is_motion_active:
@@ -234,9 +243,9 @@ async def listen_to_cloud(websocket):
             data = json.loads(msg)
         except json.JSONDecodeError:
             continue
-            
+
         if data.get("action") == "manual_record":
-            await execute_recording(websocket, "manual")
+            asyncio.create_task(execute_recording(websocket, "manual"))
 
 async def main():
     print(f"Connecting to Cloud at {WS_URI}...")
