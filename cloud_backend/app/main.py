@@ -6,6 +6,9 @@ import os
 import mimetypes
 import asyncio
 import datetime
+import time as _time
+
+_SERVER_START = _time.time()
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
@@ -31,7 +34,7 @@ connected_clients = []
 
 DEVICE_ID = "00000000165a568e"
 BUCKET_NAME = "doorbell_images"
-CLIP_RETENTION_DAYS = 90
+CLIP_RETENTION_DAYS = 7
 
 # CORS at top level
 app.add_middleware(
@@ -198,6 +201,41 @@ async def delete_event(event_id: int):
     except Exception as e:
         print(f"   [Delete Error] {repr(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/status")
+async def get_status():
+    """Live status: uptime, clip counts, last event."""
+    uptime_secs = int(_time.time() - _SERVER_START)
+    hours, remainder = divmod(uptime_secs, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    uptime_str = f"{hours}h {minutes}m" if hours else f"{minutes}m {seconds}s"
+
+    clips_today = 0
+    total_clips = 0
+    last_event = None
+
+    if supabase:
+        try:
+            today = datetime.datetime.utcnow().date().isoformat()
+            today_res = supabase.table("events").select("id", count="exact").gte("created_at", today).execute()
+            clips_today = today_res.count or 0
+
+            total_res = supabase.table("events").select("id", count="exact").execute()
+            total_clips = total_res.count or 0
+
+            last_res = supabase.table("events").select("created_at").order("created_at", desc=True).limit(1).execute()
+            if last_res.data:
+                last_event = last_res.data[0]["created_at"]
+        except Exception as e:
+            print(f"   [Status Error] {e}")
+
+    return {
+        "uptime": uptime_str,
+        "clips_today": clips_today,
+        "total_clips": total_clips,
+        "last_event": last_event,
+    }
 
 
 @app.websocket("/ws")

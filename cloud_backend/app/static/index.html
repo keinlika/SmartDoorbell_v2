@@ -5,55 +5,78 @@
     <script>
         const SUPABASE_URL = "https://yxxbvqhczswkppwepkib.supabase.co";
         const SUPABASE_ANON_KEY = "sb_publishable_poiDIRCc2Izbik1RaTZ8vw_lWdumSCH";
-        
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
             auth: { storage: window.sessionStorage }
         });
-
         document.addEventListener("DOMContentLoaded", async () => {
             try {
                 const { data, error } = await supabaseClient.auth.getSession();
-                console.log("INDEX SESSION:", data, error);
-                
-                if (error || !data.session) {
-                    window.location.replace("/static/login.html");
-                    return;
-                }
-                console.log("User authenticated:", data.session.user.email);
-
-	// User is verified! Now we load the heavy stuff:
-	        fetchHistory();
-	        refreshStream();
-	        connect();
-                
+                if (error || !data.session) { window.location.replace("/static/login.html"); return; }
+                fetchHistory();
+                refreshStream();
+                connect();
+                pollStatus();
             } catch (err) {
-                console.error("Auth Guard Error:", err);
                 window.location.replace("/static/login.html");
             }
         });
-
         async function logOut() {
             await supabaseClient.auth.signOut();
             window.location.replace("/static/login.html");
         }
     </script>
-    
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Smart Doorbell | Live Console</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
-    <script>
-        tailwind.config = { darkMode: 'class', }
-    </script>
+    <script>tailwind.config = { darkMode: 'class' }</script>
     <style>
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         .dark ::-webkit-scrollbar-thumb { background: #475569; }
         ::-webkit-scrollbar-track { background: transparent; }
+
+        /* Event type badges */
+        .badge-motion  { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+        .badge-manual  { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+        .badge-ring    { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+        .dark .badge-motion { background: rgba(234,88,12,.15); color: #fb923c; border-color: rgba(234,88,12,.3); }
+        .dark .badge-manual { background: rgba(37,99,235,.15); color: #60a5fa; border-color: rgba(37,99,235,.3); }
+        .dark .badge-ring   { background: rgba(22,163,74,.15); color: #4ade80; border-color: rgba(22,163,74,.3); }
+
+        /* Fullscreen button on hover */
+        #stream-container:hover #fullscreen-btn { opacity: 1; }
+        #fullscreen-btn { opacity: 0; transition: opacity 0.2s; }
+
+        /* Gallery grid */
+        #recordings-gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 1rem;
+        }
+
+        /* Day group header spans full width */
+        .day-header {
+            grid-column: 1 / -1;
+        }
+
+        /* Status bar pill */
+        .status-pill {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 11px; font-weight: 600;
+            padding: 3px 10px; border-radius: 999px;
+            background: rgba(100,116,139,.08);
+            border: 1px solid rgba(100,116,139,.15);
+            color: #64748b;
+            white-space: nowrap;
+        }
+        .dark .status-pill { background: rgba(100,116,139,.12); color: #94a3b8; border-color: rgba(100,116,139,.2); }
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-slate-950 text-gray-800 dark:text-slate-200 font-sans h-screen w-screen overflow-hidden flex flex-col transition-colors duration-200">
+
+    <!-- HEADER -->
     <header class="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 h-16 flex items-center justify-between px-6 z-20 shrink-0 shadow-sm transition-colors duration-200">
         <div class="flex items-center gap-4">
             <div class="flex items-center justify-center w-10 h-10 bg-blue-600 rounded-xl text-white shadow-md">
@@ -83,8 +106,13 @@
         </div>
     </header>
 
-    <main class="flex-1 p-4 lg:p-6 flex flex-col gap-6 min-h-0 overflow-y-auto w-full max-w-7xl mx-auto">
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[55vh] shrink-0">
+    <!-- MAIN -->
+    <main class="flex-1 p-4 lg:p-6 flex flex-col gap-4 min-h-0 overflow-y-auto w-full max-w-7xl mx-auto">
+
+        <!-- TOP GRID: Live View + Activity Feed -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 shrink-0" style="height:52vh">
+
+            <!-- Live View -->
             <div class="lg:col-span-2 flex flex-col bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden relative transition-colors duration-200">
                 <div class="px-4 py-3 border-b border-gray-100 dark:border-slate-800 flex justify-between items-center bg-gray-50/50 dark:bg-slate-800/40">
                     <span class="font-medium text-sm text-gray-600 dark:text-slate-300 flex items-center gap-2">
@@ -93,287 +121,378 @@
                     </span>
                     <span id="timestamp-ui" class="text-sm text-gray-500 dark:text-slate-400 font-medium">00:00:00</span>
                 </div>
-                <div class="flex-1 bg-black relative flex items-center justify-center">
+                <div id="stream-container" class="flex-1 bg-black relative flex items-center justify-center">
                     <img id="live-stream" src="" class="w-full h-full object-contain z-10" alt="Live Feed">
-                    
-                    <div id="recording-overlay" class="absolute inset-0 z-40 bg-gray-900/60 dark:bg-slate-950/70 backdrop-blur-sm hidden flex-col items-center justify-center">
-                        <i class="fa-solid fa-circle-notch fa-spin text-white dark:text-blue-500 text-4xl mb-3"></i>
+
+                    <!-- Fullscreen button (appears on hover) -->
+                    <button id="fullscreen-btn" onclick="toggleFullscreen()" title="Fullscreen"
+                        class="absolute top-3 right-3 z-30 w-9 h-9 flex items-center justify-center rounded-lg bg-black/50 hover:bg-black/80 text-white transition-all">
+                        <i class="fa-solid fa-expand text-sm"></i>
+                    </button>
+
+                    <!-- Recording overlay -->
+                    <div id="recording-overlay" class="absolute inset-0 z-40 bg-gray-900/60 backdrop-blur-sm hidden flex-col items-center justify-center">
+                        <i class="fa-solid fa-circle-notch fa-spin text-white text-4xl mb-3"></i>
                         <span class="text-white font-medium tracking-wide">Saving Video Clip...</span>
                     </div>
                 </div>
             </div>
 
+            <!-- Activity Feed -->
             <div class="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl shadow-sm flex flex-col min-h-0 overflow-hidden transition-colors duration-200">
                 <div class="px-4 py-3 border-b border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/40 flex justify-between items-center shrink-0">
                     <h2 class="font-semibold text-gray-800 dark:text-slate-200 text-sm">Activity Feed</h2>
                     <i class="fa-solid fa-list-ul text-gray-400 dark:text-slate-500"></i>
                 </div>
-                <div id="log-container" class="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/30 dark:bg-slate-900/50">
-                </div>
+                <div id="log-container" class="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/30 dark:bg-slate-900/50"></div>
             </div>
         </div>
 
+        <!-- STATUS BAR -->
+        <div id="status-bar" class="flex flex-wrap gap-2 items-center shrink-0 px-1">
+            <div class="status-pill"><i class="fa-solid fa-server text-[10px]"></i> <span id="stat-uptime">Uptime: —</span></div>
+            <div class="status-pill"><i class="fa-solid fa-film text-[10px]"></i> <span id="stat-clips">Clips today: —</span></div>
+            <div class="status-pill"><i class="fa-solid fa-clock-rotate-left text-[10px]"></i> <span id="stat-last">Last event: —</span></div>
+            <div class="status-pill"><i class="fa-solid fa-database text-[10px]"></i> <span id="stat-total">Total clips: —</span></div>
+        </div>
+
+        <!-- GALLERY: Grouped by day, grid layout -->
         <div class="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl shadow-sm flex flex-col p-5 shrink-0 transition-colors duration-200">
             <h2 class="font-semibold text-gray-800 dark:text-slate-200 text-sm mb-4">Recent Captures</h2>
-            <div id="recordings-gallery" class="flex overflow-x-auto gap-4 pb-2">
-                <div class="text-gray-400 dark:text-slate-500 text-sm py-4 w-full text-center bg-gray-50 dark:bg-slate-800/30 rounded-xl border border-dashed border-gray-200 dark:border-slate-700" id="no-clips-msg">
-                    No video clips captured yet today.
+            <div id="recordings-gallery">
+                <div class="day-header">
+                    <div id="no-clips-msg" class="text-gray-400 dark:text-slate-500 text-sm py-8 text-center bg-gray-50 dark:bg-slate-800/30 rounded-xl border border-dashed border-gray-200 dark:border-slate-700">
+                        No video clips captured yet.
+                    </div>
                 </div>
             </div>
         </div>
     </main>
 
 <script>
-        // --- THEME TOGGLE LOGIC ---
-        const htmlEl = document.documentElement;
-        const themeIcon = document.getElementById('theme-icon');
-        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-            htmlEl.classList.add('dark');
-            themeIcon.className = 'fa-solid fa-sun';
+    // --- THEME ---
+    const htmlEl = document.documentElement;
+    const themeIcon = document.getElementById('theme-icon');
+    if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        htmlEl.classList.add('dark'); themeIcon.className = 'fa-solid fa-sun';
+    }
+    function toggleTheme() {
+        if (htmlEl.classList.contains('dark')) {
+            htmlEl.classList.remove('dark'); localStorage.theme = 'light'; themeIcon.className = 'fa-solid fa-moon';
         } else {
-            htmlEl.classList.remove('dark');
-            themeIcon.className = 'fa-solid fa-moon';
+            htmlEl.classList.add('dark'); localStorage.theme = 'dark'; themeIcon.className = 'fa-solid fa-sun';
         }
-        function toggleTheme() {
-            if (htmlEl.classList.contains('dark')) {
-                htmlEl.classList.remove('dark');
-                localStorage.theme = 'light';
-                themeIcon.className = 'fa-solid fa-moon';
-            } else {
-                htmlEl.classList.add('dark');
-                localStorage.theme = 'dark';
-                themeIcon.className = 'fa-solid fa-sun';
+    }
+
+    // --- CONFIG ---
+    const API_PORT = window.location.port ? parseInt(window.location.port) : 8000;
+    const STREAM_PORT = 8001;
+    const apiBase = `${window.location.protocol}//${window.location.hostname}:${API_PORT}`;
+    const wsProto = window.location.protocol === "https:" ? "wss" : "ws";
+    const wsUrl = `${wsProto}://${window.location.hostname}:${API_PORT}/ws`;
+
+    // --- STREAM ---
+    function refreshStream() {
+        const streamImg = document.getElementById('live-stream');
+        streamImg.src = `http://${window.location.hostname}:${STREAM_PORT}/stream?t=${Date.now()}`;
+    }
+
+    // --- FULLSCREEN ---
+    function toggleFullscreen() {
+        const container = document.getElementById('stream-container');
+        const btn = document.getElementById('fullscreen-btn');
+        if (!document.fullscreenElement) {
+            container.requestFullscreen().then(() => {
+                btn.innerHTML = '<i class="fa-solid fa-compress text-sm"></i>';
+            });
+        } else {
+            document.exitFullscreen().then(() => {
+                btn.innerHTML = '<i class="fa-solid fa-expand text-sm"></i>';
+            });
+        }
+    }
+    document.addEventListener('fullscreenchange', () => {
+        const btn = document.getElementById('fullscreen-btn');
+        if (!document.fullscreenElement) {
+            btn.innerHTML = '<i class="fa-solid fa-expand text-sm"></i>';
+            btn.style.opacity = '';
+        }
+    });
+
+    // --- UI REFS ---
+    const logContainer = document.getElementById('log-container');
+    const statusBadge = document.getElementById('status-badge');
+    const gallery = document.getElementById('recordings-gallery');
+    const noClipsMsg = document.getElementById('no-clips-msg');
+    const recordingOverlay = document.getElementById('recording-overlay');
+    let globalSocket = null;
+    let reconnectTimer = null;
+
+    // --- STATUS BAR ---
+    async function pollStatus() {
+        try {
+            const res = await fetch(`${apiBase}/api/status`);
+            if (!res.ok) return;
+            const d = await res.json();
+            document.getElementById('stat-uptime').textContent = `Uptime: ${d.uptime}`;
+            document.getElementById('stat-clips').textContent = `Clips today: ${d.clips_today}`;
+            document.getElementById('stat-total').textContent = `Total clips: ${d.total_clips}`;
+            if (d.last_event) {
+                const ago = Math.round((Date.now() - new Date(d.last_event).getTime()) / 60000);
+                document.getElementById('stat-last').textContent = ago < 60
+                    ? `Last event: ${ago}m ago`
+                    : `Last event: ${Math.round(ago/60)}h ago`;
+            }
+        } catch (e) {}
+        setTimeout(pollStatus, 30000);
+    }
+
+    // --- BADGE HELPER ---
+    function eventBadge(eventType) {
+        const map = {
+            motion: { cls: 'badge-motion', icon: 'fa-person-walking', label: 'Motion' },
+            manual: { cls: 'badge-manual', icon: 'fa-hand-pointer',   label: 'Manual' },
+            ring:   { cls: 'badge-ring',   icon: 'fa-bell',           label: 'Ring'   },
+        };
+        const e = map[eventType] || map.motion;
+        return `<span class="${e.cls} flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full">
+            <i class="fa-solid ${e.icon} text-[9px]"></i>${e.label}
+        </span>`;
+    }
+
+    // --- GALLERY: grouped by day ---
+    const dayGroups = {}; // { 'Mar 21, 2026': domElement }
+
+    function getDayLabel(dateStr) {
+        const d = new Date(dateStr);
+        const today = new Date();
+        const yesterday = new Date(); yesterday.setDate(today.getDate() - 1);
+        if (d.toDateString() === today.toDateString()) return 'Today';
+        if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+        return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function getOrCreateDayGroup(dayLabel) {
+        if (dayGroups[dayLabel]) return dayGroups[dayLabel];
+
+        // Remove empty state
+        if (noClipsMsg) noClipsMsg.style.display = 'none';
+
+        // Day header
+        const header = document.createElement('div');
+        header.className = 'day-header flex items-center gap-3 mt-2';
+        header.innerHTML = `
+            <span class="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-widest whitespace-nowrap">${dayLabel}</span>
+            <div class="flex-1 h-px bg-gray-200 dark:bg-slate-700"></div>
+        `;
+
+        // Grid container for this day
+        const grid = document.createElement('div');
+        grid.className = 'day-header';
+        grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:0.75rem;';
+
+        // Prepend new days at top
+        const firstChild = gallery.firstChild;
+        gallery.insertBefore(grid, firstChild);
+        gallery.insertBefore(header, grid);
+
+        dayGroups[dayLabel] = grid;
+        return grid;
+    }
+
+    function addVideoToGallery(url, timestamp, eventType = "motion", eventId = null, createdAt = null) {
+        // Parse display time
+        let displayTime = timestamp;
+        let dayLabel = 'Today';
+
+        if (createdAt) {
+            const d = new Date(createdAt);
+            dayLabel = getDayLabel(createdAt);
+            displayTime = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } else if (timestamp && timestamp.includes('_') && timestamp.length >= 15) {
+            const parts = timestamp.split('_');
+            const d = parts[0], t = parts[1];
+            if (d.length === 8 && t.length === 6) {
+                displayTime = `${t.substring(0,2)}:${t.substring(2,4)}`;
             }
         }
 
-        // --- CONFIG ---
-        // Serve this file from FastAPI (uvicorn main:app --port 8000), NOT python -m http.server.
-        // FastAPI already mounts /static — open http://<pi-ip>:8000 directly in the browser.
-        const API_PORT = window.location.port ? parseInt(window.location.port) : 8000;
-        const STREAM_PORT = 8001;
+        const actionBtnHtml = eventId
+            ? `<button onclick="deleteEvent(${eventId}, this)" class="text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 w-8 h-8 flex items-center justify-center rounded-lg transition-all flex-shrink-0" title="Delete Clip"><i class="fa-solid fa-trash-can text-xs"></i></button>`
+            : `<button disabled class="text-gray-300 dark:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg cursor-default flex-shrink-0"><i class="fa-solid fa-arrows-rotate text-xs"></i></button>`;
 
-        const apiBase = `${window.location.protocol}//${window.location.hostname}:${API_PORT}`;
-        const wsProto = window.location.protocol === "https:" ? "wss" : "ws";
-        const wsUrl = `${wsProto}://${window.location.hostname}:${API_PORT}/ws`;
-        
-        function refreshStream() {
-            const streamImg = document.getElementById('live-stream');
-            const timestamp = new Date().getTime();
-            streamImg.src = `http://${window.location.hostname}:${STREAM_PORT}/stream?t=${timestamp}`;
-        }
+        const card = document.createElement('div');
+        card.className = "flex-none bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm flex flex-col group transition-colors duration-200";
 
-        // --- UI REFS ---
-        const logContainer = document.getElementById('log-container');
-        const statusBadge = document.getElementById('status-badge');
-        const gallery = document.getElementById('recordings-gallery');
-        const noClipsMsg = document.getElementById('no-clips-msg');
-        const recordingOverlay = document.getElementById('recording-overlay');
-        let globalSocket = null;
-
-        // --- UPDATED: FETCH DB HISTORY (Now passes event ID for deletion) ---
-        async function fetchHistory() {
-            try {
-                const { data, error } = await supabaseClient
-                    .from('events')
-                    .select('*')
-                    .eq('device_id', '00000000165a568e')
-                    .order('created_at', { ascending: false })
-                    .limit(10);
-
-                if (error) throw error;
-
-                if (data && data.length > 0) {
-                    data.reverse().forEach(event => {
-                        const dateObj = new Date(event.created_at);
-                        const formattedTime = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                        addVideoToGallery(event.video_url, formattedTime, event.event_type, event.id);
-                    });
-                }
-            } catch (err) {
-                console.error("Failed to load history:", err);
-            }
-        }
-
-        // --- KEEPS YOUR LOGGING SYSTEM WORKING ---
-        function addLog(title, subtitle, iconClass, lightColorClass, darkColorClass) {
-            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            const div = document.createElement('div');
-            div.className = "bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 p-3 rounded-xl shadow-sm flex items-start gap-3 transition-colors duration-200";
-            div.innerHTML = `
-                <div class="mt-0.5 w-8 h-8 rounded-full flex items-center justify-center ${lightColorClass} dark:${darkColorClass} shrink-0">
-                    <i class="${iconClass} text-sm"></i>
+        card.innerHTML = `
+            <div class="relative w-full aspect-video bg-black overflow-hidden border-b border-gray-200 dark:border-slate-700">
+                <video class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" controls preload="metadata">
+                    <source src="${url}" type="video/mp4">
+                </video>
+            </div>
+            <div class="px-3 py-2 flex justify-between items-center gap-2 bg-gray-50 dark:bg-slate-800">
+                <div class="flex flex-col gap-1 min-w-0">
+                    ${eventBadge(eventType)}
+                    <span class="text-[10px] text-gray-500 dark:text-slate-400 font-medium">${displayTime}</span>
                 </div>
-                <div class="flex-1 min-w-0">
-                    <p class="text-sm font-semibold text-gray-900 dark:text-slate-200">${title}</p>
-                    <p class="text-xs text-gray-500 dark:text-slate-400 truncate mt-0.5">${subtitle}</p>
-                </div>
-                <span class="text-[10px] font-medium text-gray-400 dark:text-slate-500 shrink-0 mt-1">${time}</span>
-            `;
-            logContainer.prepend(div);
-            if (logContainer.children.length > 15) {
-                logContainer.removeChild(logContainer.lastChild);
-            }
-        }
+                ${actionBtnHtml}
+            </div>
+        `;
 
-        let reconnectTimer = null;
+        const dayGrid = getOrCreateDayGroup(dayLabel);
+        dayGrid.prepend(card);
+    }
 
-        function connect() {
-            // Prevent stacking multiple socket instances — clear any pending reconnect
-            // and close an existing socket silently before opening a new one.
-            if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
-            if (globalSocket && globalSocket.readyState !== WebSocket.CLOSED) {
-                globalSocket.onclose = null; // detach handler so closing doesn't re-trigger reconnect
-                globalSocket.close();
-            }
+    // --- FETCH HISTORY ---
+    async function fetchHistory() {
+        try {
+            const { data, error } = await supabaseClient
+                .from('events')
+                .select('*')
+                .eq('device_id', '00000000165a568e')
+                .order('created_at', { ascending: false })
+                .limit(20);
 
-            globalSocket = new WebSocket(wsUrl);
-
-            globalSocket.onopen = () => {
-                statusBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-green-500 dark:bg-emerald-400 shadow-[0_0_5px_#22c55e]"></span> Live`;
-                statusBadge.className = "flex items-center gap-1 text-[11px] font-semibold tracking-wide bg-green-50 dark:bg-emerald-500/10 text-green-700 dark:text-emerald-400 px-2 py-0.5 rounded-full uppercase border border-green-200 dark:border-emerald-500/20";
-                addLog("System Online", "Connection to doorbell established.", "fa-solid fa-check", "bg-green-100 text-green-600", "bg-emerald-500/20 text-emerald-400");
-            };
-
-            globalSocket.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-
-                if (data.event === "recording_started") {
-                    const type = data.type === "sensor" ? "Motion Detected" : "Manual Recording";
-                    addLog(type, "Camera is saving a video clip.", "fa-solid fa-person-walking", "bg-orange-100 text-orange-600", "bg-orange-500/20 text-orange-400");
-                    recordingOverlay.classList.remove('hidden');
-                }
-
-                if (data.event === "motion" || data.event === "manual_record_complete") {
-                    recordingOverlay.classList.add('hidden');
-                    if (data.video_url) {
-                        addLog("Clip Uploaded", "Video securely saved to cloud.", "fa-solid fa-cloud-arrow-up", "bg-blue-100 text-blue-600", "bg-blue-500/20 text-blue-400");
-                        addVideoToGallery(data.video_url, data.timestamp, data.event === "motion" ? "motion" : "manual", null);
-                    }
-                }
-            };
-
-            globalSocket.onclose = () => {
-                // Use a subtle "reconnecting" state — don't blast "Offline" and log
-                // an error for routine drops (e.g. brief server hiccup after a delete).
-                // Only update the badge; skip the error log to avoid UI noise.
-                statusBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse"></span> Reconnecting`;
-                statusBadge.className = "flex items-center gap-1 text-[11px] font-semibold tracking-wide bg-yellow-50 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 px-2 py-0.5 rounded-full uppercase border border-yellow-200 dark:border-yellow-500/20";
-                reconnectTimer = setTimeout(connect, 2000);
-            };
-        }
-
-        function triggerManualRecord() {
-            if (globalSocket && globalSocket.readyState === WebSocket.OPEN) {
-                globalSocket.send(JSON.stringify({ action: "manual_record" }));
-            }
-        }
-
-        // --- UPDATED: ADD VIDEO (Now with 16:9 layout and Trash Can icons) ---
-        function addVideoToGallery(url, timestamp, eventType = "motion", eventId = null) {
-            if (noClipsMsg) noClipsMsg.style.display = 'none';
-            
-            let cleanTime = timestamp;
-            if(timestamp.includes('_') && timestamp.length >= 15) {
-                const parts = timestamp.split('_');
-                const d = parts[0];
-                const t = parts[1];
-                if (d.length === 8 && t.length === 6) {
-                    cleanTime = `${d.substring(4,6)}/${d.substring(6,8)} at ${t.substring(0,2)}:${t.substring(2,4)}`;
-                }
-            }
-
-            const iconClass = eventType === "manual" ? "fa-hand-pointer" : "fa-person-walking";
-            const typeLabel = eventType === "manual" ? "Manual Record" : "Motion Event";
-
-	const actionBtnHtml = eventId 
-	    ? `<button onclick="deleteEvent(${eventId}, this)" class="text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 w-8 h-8 flex items-center justify-center rounded-lg transition-all" title="Delete Clip"><i class="fa-solid fa-trash-can"></i></button>`
-	    : `<button disabled class="text-gray-300 dark:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg cursor-default" title="Reload page to manage this clip"><i class="fa-solid fa-arrows-rotate"></i></button>`;
-
-            const videoWrapper = document.createElement('div');
-            videoWrapper.className = "flex-none w-72 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm flex flex-col group transition-colors duration-200";
-            
-            videoWrapper.innerHTML = `
-                <div class="relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden border-b border-gray-200 dark:border-slate-700">
-                    <video class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" controls preload="metadata">
-                        <source src="${url}" type="video/mp4">
-                    </video>
-                </div>
-                <div class="px-3 py-2 flex justify-between items-center bg-gray-50 dark:bg-slate-800 transition-colors">
-                    <div class="flex flex-col">
-                        <span class="text-xs font-semibold text-gray-700 dark:text-slate-300 flex items-center gap-1.5">
-                            <i class="fa-solid ${iconClass} text-gray-400 dark:text-slate-400"></i> ${typeLabel}
-                        </span>
-                        <span class="text-[10px] text-gray-500 dark:text-slate-400 font-medium">${cleanTime}</span>
-                    </div>
-                    ${actionBtnHtml}
-                </div>
-            `;
-            gallery.prepend(videoWrapper);
-        }
-
-        // FIX: Remove the card from the DOM directly instead of reloading the page.
-        // Two-step inline delete — no blocking confirm() dialog.
-        // confirm() freezes JS, which can confuse the Supabase session and
-        // cause the auth guard to redirect on resume.
-        function deleteEvent(eventId, btnEl = null) {
-            if (!btnEl) return;
-
-            // First click: turn button into a red "Sure?" confirmation.
-            // Second click within 3s: execute the delete.
-            if (btnEl.dataset.confirming !== "true") {
-                btnEl.dataset.confirming = "true";
-                btnEl.innerHTML = '<i class="fa-solid fa-check text-red-500"></i>';
-                btnEl.title = "Click again to confirm delete";
-                btnEl.classList.add("bg-red-50", "dark:bg-red-500/10");
-                setTimeout(() => {
-                    if (btnEl.dataset.confirming === "true") {
-                        btnEl.dataset.confirming = "false";
-                        btnEl.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
-                        btnEl.title = "Delete Clip";
-                        btnEl.classList.remove("bg-red-50", "dark:bg-red-500/10");
-                    }
-                }, 3000);
-                return;
-            }
-
-            // Second click — execute delete.
-            btnEl.dataset.confirming = "false";
-            btnEl.disabled = true;
-            btnEl.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin text-red-400"></i>';
-
-            fetch(`${apiBase}/api/events/${eventId}`, { method: "DELETE" })
-                .then(async response => {
-                    const resultText = await response.text();
-                    if (!response.ok) {
-                        btnEl.disabled = false;
-                        btnEl.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
-                        addLog("Delete Failed", `Server error: ${response.status}`, "fa-solid fa-triangle-exclamation", "bg-red-100 text-red-600", "bg-red-500/20 text-red-400");
-                        return;
-                    }
-                    const card = btnEl.closest(".flex-none");
-                    if (card) {
-                        card.style.transition = "opacity 0.2s";
-                        card.style.opacity = "0";
-                        setTimeout(() => {
-                            card.remove();
-                            if (gallery.querySelectorAll(".flex-none").length === 0 && noClipsMsg) {
-                                noClipsMsg.style.display = "";
-                            }
-                        }, 200);
-                    }
-                    addLog("Clip Deleted", `Event #${eventId} removed from cloud.`, "fa-solid fa-trash-can", "bg-red-100 text-red-600", "bg-red-500/20 text-red-400");
-                })
-                .catch(err => {
-                    btnEl.disabled = false;
-                    btnEl.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
-                    addLog("Delete Failed", `Network error: ${err.message}`, "fa-solid fa-triangle-exclamation", "bg-red-100 text-red-600", "bg-red-500/20 text-red-400");
+            if (error) throw error;
+            if (data && data.length > 0) {
+                // Add oldest first so prepend puts newest at top within each day
+                [...data].reverse().forEach(event => {
+                    addVideoToGallery(event.video_url, event.created_at, event.event_type, event.id, event.created_at);
                 });
+            }
+        } catch (err) {
+            console.error("Failed to load history:", err);
         }
+    }
 
-        setInterval(() => {
-            document.getElementById('timestamp-ui').innerText = new Date().toLocaleTimeString();
-        }, 1000);
+    // --- LOG ---
+    function addLog(title, subtitle, iconClass, lightColorClass, darkColorClass) {
+        const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const div = document.createElement('div');
+        div.className = "bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 p-3 rounded-xl shadow-sm flex items-start gap-3 transition-colors duration-200";
+        div.innerHTML = `
+            <div class="mt-0.5 w-8 h-8 rounded-full flex items-center justify-center ${lightColorClass} dark:${darkColorClass} shrink-0">
+                <i class="${iconClass} text-sm"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+                <p class="text-sm font-semibold text-gray-900 dark:text-slate-200">${title}</p>
+                <p class="text-xs text-gray-500 dark:text-slate-400 truncate mt-0.5">${subtitle}</p>
+            </div>
+            <span class="text-[10px] font-medium text-gray-400 dark:text-slate-500 shrink-0 mt-1">${time}</span>
+        `;
+        logContainer.prepend(div);
+        if (logContainer.children.length > 15) logContainer.removeChild(logContainer.lastChild);
+    }
 
-    </script>
+    // --- WEBSOCKET ---
+    function connect() {
+        if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+        if (globalSocket && globalSocket.readyState !== WebSocket.CLOSED) {
+            globalSocket.onclose = null;
+            globalSocket.close();
+        }
+        globalSocket = new WebSocket(wsUrl);
+
+        globalSocket.onopen = () => {
+            statusBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_5px_#22c55e]"></span> Live`;
+            statusBadge.className = "flex items-center gap-1 text-[11px] font-semibold tracking-wide bg-green-50 dark:bg-emerald-500/10 text-green-700 dark:text-emerald-400 px-2 py-0.5 rounded-full uppercase border border-green-200 dark:border-emerald-500/20";
+            addLog("System Online", "Connection to doorbell established.", "fa-solid fa-check", "bg-green-100 text-green-600", "bg-emerald-500/20 text-emerald-400");
+        };
+
+        globalSocket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.event === "recording_started") {
+                const type = data.type === "sensor" ? "Motion Detected" : "Manual Recording";
+                addLog(type, "Camera is saving a video clip.", "fa-solid fa-person-walking", "bg-orange-100 text-orange-600", "bg-orange-500/20 text-orange-400");
+                recordingOverlay.classList.remove('hidden');
+            }
+            if (data.event === "motion" || data.event === "manual_record_complete") {
+                recordingOverlay.classList.add('hidden');
+                if (data.video_url) {
+                    addLog("Clip Uploaded", "Video securely saved to cloud.", "fa-solid fa-cloud-arrow-up", "bg-blue-100 text-blue-600", "bg-blue-500/20 text-blue-400");
+                    addVideoToGallery(data.video_url, data.timestamp, data.event === "motion" ? "motion" : "manual", null, new Date().toISOString());
+                }
+            }
+        };
+
+        globalSocket.onclose = () => {
+            statusBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse"></span> Reconnecting`;
+            statusBadge.className = "flex items-center gap-1 text-[11px] font-semibold tracking-wide bg-yellow-50 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 px-2 py-0.5 rounded-full uppercase border border-yellow-200 dark:border-yellow-500/20";
+            reconnectTimer = setTimeout(connect, 2000);
+        };
+    }
+
+    function triggerManualRecord() {
+        if (globalSocket && globalSocket.readyState === WebSocket.OPEN) {
+            globalSocket.send(JSON.stringify({ action: "manual_record" }));
+        }
+    }
+
+    // --- DELETE (two-step, no confirm dialog) ---
+    function deleteEvent(eventId, btnEl = null) {
+        if (!btnEl) return;
+        if (btnEl.dataset.confirming !== "true") {
+            btnEl.dataset.confirming = "true";
+            btnEl.innerHTML = '<i class="fa-solid fa-check text-red-500 text-xs"></i>';
+            btnEl.title = "Click again to confirm";
+            btnEl.classList.add("bg-red-50", "dark:bg-red-500/10");
+            setTimeout(() => {
+                if (btnEl.dataset.confirming === "true") {
+                    btnEl.dataset.confirming = "false";
+                    btnEl.innerHTML = '<i class="fa-solid fa-trash-can text-xs"></i>';
+                    btnEl.title = "Delete Clip";
+                    btnEl.classList.remove("bg-red-50", "dark:bg-red-500/10");
+                }
+            }, 3000);
+            return;
+        }
+        btnEl.dataset.confirming = "false";
+        btnEl.disabled = true;
+        btnEl.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin text-red-400 text-xs"></i>';
+
+        fetch(`${apiBase}/api/events/${eventId}`, { method: "DELETE" })
+            .then(async response => {
+                if (!response.ok) {
+                    btnEl.disabled = false;
+                    btnEl.innerHTML = '<i class="fa-solid fa-trash-can text-xs"></i>';
+                    addLog("Delete Failed", `Server error: ${response.status}`, "fa-solid fa-triangle-exclamation", "bg-red-100 text-red-600", "bg-red-500/20 text-red-400");
+                    return;
+                }
+                const card = btnEl.closest(".bg-white, .dark\\:bg-slate-900");
+                if (card) {
+                    card.style.transition = "opacity 0.2s, transform 0.2s";
+                    card.style.opacity = "0";
+                    card.style.transform = "scale(0.95)";
+                    setTimeout(() => {
+                        card.remove();
+                        // If day grid is empty, remove header too
+                        document.querySelectorAll('#recordings-gallery .day-header').forEach(el => {
+                            if (el.tagName !== 'DIV' || el.children.length === 0) return;
+                            const grid = el;
+                            if (grid.style.display === 'grid' && grid.children.length === 0) {
+                                const prev = grid.previousElementSibling;
+                                if (prev) prev.remove();
+                                grid.remove();
+                            }
+                        });
+                        if (gallery.querySelectorAll('video').length === 0 && noClipsMsg) {
+                            noClipsMsg.style.display = '';
+                        }
+                    }, 200);
+                }
+                addLog("Clip Deleted", `Event #${eventId} removed from cloud.`, "fa-solid fa-trash-can", "bg-red-100 text-red-600", "bg-red-500/20 text-red-400");
+            })
+            .catch(err => {
+                btnEl.disabled = false;
+                btnEl.innerHTML = '<i class="fa-solid fa-trash-can text-xs"></i>';
+                addLog("Delete Failed", `Network error: ${err.message}`, "fa-solid fa-triangle-exclamation", "bg-red-100 text-red-600", "bg-red-500/20 text-red-400");
+            });
+    }
+
+    // --- CLOCK ---
+    setInterval(() => {
+        document.getElementById('timestamp-ui').innerText = new Date().toLocaleTimeString();
+    }, 1000);
+</script>
 </body>
 </html>
