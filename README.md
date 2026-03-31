@@ -6,7 +6,7 @@ I designed and architected a **distributed, real-time IoT security platform** th
  
 ---
  
-## 🔧 Technical Architecture
+##  Technical Architecture
  
 ### Three-Layer System
  
