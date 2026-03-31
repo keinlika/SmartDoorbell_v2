@@ -301,7 +301,6 @@ This demonstrates **mid-to-senior level IoT engineering** capability.
  
 ---
  
-##  In Your Own Words
  
 > "I architected and shipped a distributed IoT security platform featuring:
 > 
