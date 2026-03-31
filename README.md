@@ -33,7 +33,7 @@ STM32L476RG Discovery Board
  
 ```
 ┌─────────────────────────────────────────────────┐
-│         Raspberry Pi 3 Model B Pluse (Top View)       │
+│   Raspberry Pi 3 Model B Pluse (Top View)       │
 ├─────────────────────────────────────────────────┤
 │                                                 │
 │  [USB-C Power] [Micro HDMI] [Audio Jack]        │
