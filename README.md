@@ -266,22 +266,22 @@ This shows I understand modern concurrency patterns and their tradeoffs.
  
 ---
  
-##  Why This Matters [Company]
+##  Why This Matters
  
-### For Tesla (Energy + Robotics)
+### (Energy + Robotics)
 - **Distributed Device Management**: Scales from 1 home to 1M homes
 - **Edge + Cloud Coordination**: Local processing + cloud analytics
 - **Sensor Integration**: Multi-modal input (video, contact, motion)
 - **Reliability Requirements**: 99.5% uptime with auto-recovery
 - **Security at Scale**: Device authentication, data isolation, compliance
  
-### For Apple (Home Security)
+### (Home Security)
 - **Privacy-First Design**: Local processing by default, cloud optional
 - **Seamless Integration**: HomeKit protocol compatibility
 - **Real-Time Responsiveness**: <100ms event propagation
 - **Multi-Device Coordination**: Whole-home security ecosystem
  
-### For Google (Home Automation)
+### (Home Automation)
 - **Cloud Integration**: Scalable backend, real-time updates
 - **AI-Ready Architecture**: Event stream for ML models
 - **Cross-Device Communication**: WebSocket relay for coordinated actions
