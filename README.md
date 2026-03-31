@@ -16,23 +16,23 @@ I designed and architected a **distributed, real-time IoT security platform** th
 ├─────────────────────────────────────────────────────────────┤
 │ • 8 independent door/window contact sensors (GPIO inputs)   │
 │ • Debouncing logic (50ms filter on mechanical switches)     │
-│ • UART protocol handler (115200 baud, CRC-8 validation)    │
+│ • UART protocol handler (115200 baud, CRC-8 validation)     │
 │ • Deterministic real-time event processing (<10ms latency)  │
 └─────────────────────────────────────────────────────────────┘
               ↓ UART Communication (Non-blocking, Async)
-┌─────────────────────────────────────────────────────────────┐
+┌──────────────────────────────────────────────────────────-───┐
 │ LAYER 2: Edge Computing & Real-Time Processing (Raspberry Pi)│
-├─────────────────────────────────────────────────────────────┤
-│ • Multi-tasking async event loop (asyncio, Python 3.9+)     │
-│ • 1080p H.264 video encoding @ 30fps (FFmpeg)              │
-│ • MJPEG live stream server (640x360 @ 15fps, Flask)        │
-│ • Intelligent recording orchestration (motion + contact)    │
-│ • Local fallback storage (if cloud offline)                 │
-│ • Device health monitoring (temperature, disk, WiFi RSSI)   │
-└─────────────────────────────────────────────────────────────┘
+├───────────────────────────────────────────────────────────── ┤
+│ • Multi-tasking async event loop (asyncio, Python 3.9+)      │
+│ • 1080p H.264 video encoding @ 30fps (FFmpeg)                │
+│ • MJPEG live stream server (640x360 @ 15fps, Flask)          │
+│ • Intelligent recording orchestration (motion + contact)     │
+│ • Local fallback storage (if cloud offline)                  │
+│ • Device health monitoring (temperature, disk, WiFi RSSI)    │
+└─────────────────────────────────────────────────────────────-┘
               ↓ WebSocket + HTTP API
 ┌─────────────────────────────────────────────────────────────┐
-│ LAYER 3: Cloud Backend (FastAPI + Supabase)                │
+│ LAYER 3: Cloud Backend (FastAPI + Supabase)                 │
 ├─────────────────────────────────────────────────────────────┤
 │ • Device authentication (JWT tokens, cryptographic signing) │
 │ • Video storage & CDN distribution (Supabase Storage)       │
@@ -43,7 +43,7 @@ I designed and architected a **distributed, real-time IoT security platform** th
 └─────────────────────────────────────────────────────────────┘
               ↓ Real-time Updates
 ┌─────────────────────────────────────────────────────────────┐
-│ LAYER 4: Responsive Frontend (React + Tailwind)            │
+│ LAYER 4: Responsive Frontend (React + Tailwind)             │
 ├─────────────────────────────────────────────────────────────┤
 │ • Live MJPEG stream with auto-refresh                       │
 │ • Real-time activity feed (WebSocket events)                │
