@@ -321,4 +321,4 @@ This demonstrates **mid-to-senior level IoT engineering** capability.
  
 ---
 
-**All rights reserved. No license is granted for use, copying, modification, or distribution of this project without explicit written permission from the author.**
+*All rights reserved. No license is granted for use, copying, modification, or distribution of this project without explicit written permission from the author.*
