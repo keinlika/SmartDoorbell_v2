@@ -144,7 +144,7 @@ STM32L476RG Discovery Board
   
 ---
  
-## 📊 Technical Metrics
+##  Technical Metrics
  
 | Metric | Achievement | Standard | Status |
 |--------|-------------|----------|--------|
