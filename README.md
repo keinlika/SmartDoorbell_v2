@@ -250,9 +250,9 @@ This shows I understand modern concurrency patterns and their tradeoffs.
 ### Current Status: Prototype → Production
 **Security Score**: 4/10 → Needs authentication
 
-**Reliability Score**: 7/10 → Needs failover & recovery  
+**Reliability Score**: 6/10 → Needs failover & recovery  
 
-**Scalability Score**: 6/10 → Needs rate limiting & load testing
+**Scalability Score**: 5/10 → Needs rate limiting & load testing
  
 ### Roadmap to Launch (4 Months)
 1. **Phase 1 **: Authentication + Rate Limiting
@@ -321,4 +321,4 @@ This demonstrates **mid-to-senior level IoT engineering** capability.
  
 ---
 
-*All rights reserved. No license is granted for use, copying, modification, or distribution of this project without explicit written permission from the author.*
+*All rights reserved. No license is granted for use, copying, modification, or distribution of this project without explicit written permission from the author. This repository is public for viewing by recruiters and professors only.*
