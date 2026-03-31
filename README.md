@@ -317,6 +317,8 @@ This demonstrates **mid-to-senior level IoT engineering** capability.
 > - **Scalability**: Multi-device architecture, connection pooling, event queuing
 > - **Real-time Performance**: <10ms sensor latency, <100ms event propagation
 > 
-> This demonstrates full-stack expertise across embedded systems, real-time distributed systems, cloud architecture, and production engineering — exactly what you need for [scaling IoT at scale / distributed robotics / home automation ecosystem]."
+> This demonstrates full-stack expertise across embedded systems, real-time distributed systems, cloud architecture, and production engineering; exactly what you need for [scaling IoT at scale / distributed robotics / home automation ecosystem]."
  
 ---
+
+**All rights reserved. No license is granted for use, copying, modification, or distribution of this project without explicit written permission from the author.**
