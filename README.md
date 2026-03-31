@@ -7,6 +7,51 @@ I designed and architected a **distributed, real-time IoT security platform** th
 ---
  
 ##  Technical Architecture
+
+## STM32 Firmware (ARM Cortex-M4)
+ 
+### Hardware Setup
+ 
+```
+STM32L476RG Discovery Board
+├─ PA0   ← Reed Switch #0 (Front Door)
+├─ PA1   ← Reed Switch #1 (Window 1)
+├─ PA2   ← Reed Switch #2 (Window 2)
+├─ PA3   ← Reed Switch #3 (Window 3)
+├─ PA4   ← Reed Switch #4 (Window 4)
+├─ PA5   ← Reed Switch #5 (Window 5)
+├─ PA6   ← Reed Switch #6 (Garage Door)
+├─ PA7   ← Reed Switch #7 (Tamper Sensor)
+│
+├─ TX (PA2 alt) ← USART2 TX → Raspberry Pi RXD (GPIO 10)
+└─ RX (PA3 alt) ← USART2 RX ← Raspberry Pi TXD (GPIO 8)
+```
+
+## Raspberry Pi
+
+### Hardware Setup
+ 
+```
+┌─────────────────────────────────────────────────┐
+│         Raspberry Pi 4 Model B (Top View)       │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│  [USB-C Power] [Micro HDMI] [Audio Jack]       │
+│                                                 │
+│  [USB 3.0] [USB 3.0] [USB 2.0] [USB 2.0]      │
+│                                                 │
+│  [Gigabit Ethernet] [3.5mm Audio Out]          │
+│                                                 │
+│  ┌─ CSI Camera Slot ─┐                         │
+│  │  (Ribbon cable)   │  ← Camera Module v2     │
+│  └───────────────────┘                         │
+│                                                 │
+│  ┌─ GPIO Header ─┐                             │
+│  │ (40 pins)     │  ← Motion Sensor (GPIO 4)   │
+│  └───────────────┘                             │
+│                                                 │
+└─────────────────────────────────────────────────┘
+```
  
 ### Three-Layer System
  
