@@ -2,7 +2,7 @@
 #include "app_config.h"
 #include <string.h>
 
-extern UART_HandleTypeDef huart2; // adjust if different
+extern UART_HandleTypeDef huart2;
 
 static void vTaskDoorbell(void *arg);
 static void vTaskPIR(void *arg);
