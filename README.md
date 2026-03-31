@@ -244,11 +244,11 @@ This shows I understand modern concurrency patterns and their tradeoffs.
  
 ##  What I've Proven
  
- **I can architect end-to-end systems** — from STM32 firmware to cloud infrastructure to user interface  
- **I understand production constraints** — security, reliability, scalability, compliance  
- **I solve real problems** — debouncing, race conditions, failover, data privacy  
- **I think like an engineer** — not just "make it work," but "make it work reliably at scale"  
- **I can own complexity** — distributed systems, async concurrency, hardware integration  
+ **I can architect end-to-end systems** - from STM32 firmware to cloud infrastructure to user interface  
+ **I understand production constraints** - security, reliability, scalability, compliance  
+ **I solve real problems** - debouncing, race conditions, failover, data privacy  
+ **I think like an engineer** - not just "make it work," but "make it work reliably at scale"  
+ **I can own complexity** - distributed systems, async concurrency, hardware integration  
  
 This demonstrates **mid-to-senior level IoT engineering** capability.
  
