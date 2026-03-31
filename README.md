@@ -36,19 +36,19 @@ STM32L476RG Discovery Board
 │         Raspberry Pi 4 Model B (Top View)       │
 ├─────────────────────────────────────────────────┤
 │                                                 │
-│  [USB-C Power] [Micro HDMI] [Audio Jack]       │
+│  [USB-C Power] [Micro HDMI] [Audio Jack]        │
 │                                                 │
-│  [USB 3.0] [USB 3.0] [USB 2.0] [USB 2.0]      │
+│  [USB 3.0] [USB 3.0] [USB 2.0] [USB 2.0]        │
 │                                                 │
-│  [Gigabit Ethernet] [3.5mm Audio Out]          │
+│  [Gigabit Ethernet] [3.5mm Audio Out]           │
 │                                                 │
-│  ┌─ CSI Camera Slot ─┐                         │
-│  │  (Ribbon cable)   │  ← Camera Module v2     │
-│  └───────────────────┘                         │
+│  ┌─ CSI Camera Slot ─┐                          │
+│  │  (Ribbon cable)   │  ← Camera Module v2      │
+│  └───────────────────┘                          │
 │                                                 │
-│  ┌─ GPIO Header ─┐                             │
-│  │ (40 pins)     │  ← Motion Sensor (GPIO 4)   │
-│  └───────────────┘                             │
+│  ┌─ GPIO Header ─┐                              │
+│  │ (40 pins)     │  ← Motion Sensor (GPIO 4)    │
+│  └───────────────┘                              │
 │                                                 │
 └─────────────────────────────────────────────────┘
 ```
