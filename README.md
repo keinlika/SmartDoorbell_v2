@@ -1,6 +1,6 @@
 ## Executive Overview
  
-I designed and architected a **distributed, real-time IoT security platform** that demonstrates full-stack expertise across embedded systems, edge computing, cloud infrastructure, and production engineering. This is not a hobby project—it's a **professional product** built with the reliability, security, and scalability standards required for commercial deployment.
+I designed and architected a **distributed, real-time IoT security platform** that demonstrates full-stack expertise across embedded systems, edge computing, cloud infrastructure, and production engineering. This is not a hobby project, it's a **professional product** built with the reliability, security, and scalability standards required for commercial deployment.
  
 **What This Proves**: I can architect complex systems where hardware, firmware, backend services, and frontend interfaces must work together reliably at scale.
  
