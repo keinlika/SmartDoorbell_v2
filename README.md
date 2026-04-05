@@ -254,7 +254,7 @@ This shows I understand modern concurrency patterns and their tradeoffs.
 
 **Scalability Score**: 5/10 → Needs rate limiting & load testing
  
-### Roadmap to Launch (4 Months)
+### Roadmap to Launch (2 Months)
 1. **Phase 1 **: Authentication + Rate Limiting
 2. **Phase 2 **: Async Concurrency Fixes + Testing
 3. **Phase 3 **: Health Monitoring + Failover
