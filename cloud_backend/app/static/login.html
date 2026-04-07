@@ -36,6 +36,12 @@
     </form>
 
     <div id="error-msg" class="mt-4 text-center text-sm text-red-400 hidden bg-red-500/10 border border-red-500/20 py-2 rounded-lg"></div>
+    <div id="success-msg" class="mt-4 text-center text-sm text-emerald-300 hidden bg-emerald-500/10 border border-emerald-500/20 py-2 rounded-lg"></div>
+
+    <div class="mt-6 text-center text-sm text-slate-400">
+      <span id="mode-copy">Need an account?</span>
+      <button type="button" id="mode-toggle" class="ml-1 text-blue-400 hover:text-blue-300 font-semibold transition-colors">Create one</button>
+    </div>
   </div>
 
   <script>
@@ -50,18 +56,86 @@
 
     const loginForm = document.getElementById('login-form');
     const errorMsg = document.getElementById('error-msg');
+    const successMsg = document.getElementById('success-msg');
     const submitBtn = document.getElementById('submit-btn');
+    const modeCopy = document.getElementById('mode-copy');
+    const modeToggle = document.getElementById('mode-toggle');
+    let authMode = 'signin';
+
+    function setMode(mode) {
+      authMode = mode;
+      errorMsg.classList.add('hidden');
+      successMsg.classList.add('hidden');
+
+      if (mode === 'signup') {
+        document.title = 'Create Account | Smart Doorbell';
+        submitBtn.innerHTML = `<span>Create Account</span>`;
+        modeCopy.textContent = 'Already have an account?';
+        modeToggle.textContent = 'Sign in';
+      } else {
+        document.title = 'System Login | Smart Doorbell';
+        submitBtn.innerHTML = `<span>Sign In</span>`;
+        modeCopy.textContent = 'Need an account?';
+        modeToggle.textContent = 'Create one';
+      }
+    }
+
+    async function ensureProfile(user) {
+      if (!user?.id) return;
+
+      const profilePayload = { id: user.id };
+      const { error } = await supabaseClient
+        .from('profiles')
+        .upsert(profilePayload, { onConflict: 'id' });
+
+      if (error) {
+        throw error;
+      }
+    }
+
+    modeToggle.addEventListener('click', () => {
+      setMode(authMode === 'signin' ? 'signup' : 'signin');
+    });
 
     loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
 
       errorMsg.classList.add('hidden');
-      submitBtn.innerHTML = `<span>Authenticating...</span>`;
+      successMsg.classList.add('hidden');
+      submitBtn.innerHTML = authMode === 'signup'
+        ? `<span>Creating Account...</span>`
+        : `<span>Authenticating...</span>`;
 
       const email = document.getElementById('email').value;
       const password = document.getElementById('password').value;
 
       try {
+        if (authMode === 'signup') {
+          const { data, error } = await supabaseClient.auth.signUp({
+            email,
+            password
+          });
+
+          if (error) {
+            errorMsg.innerText = error.message;
+            errorMsg.classList.remove('hidden');
+            submitBtn.innerHTML = `<span>Create Account</span>`;
+            return;
+          }
+
+          if (data.session && data.user) {
+            await ensureProfile(data.user);
+            window.location.href = "/";
+            return;
+          }
+
+          successMsg.innerText = "Account created. Check your email to confirm, then sign in.";
+          successMsg.classList.remove('hidden');
+          setMode('signin');
+          submitBtn.innerHTML = `<span>Sign In</span>`;
+          return;
+        }
+
         const { data, error } = await supabaseClient.auth.signInWithPassword({
           email,
           password
@@ -74,21 +148,23 @@
           return;
         }
 
-        const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+        const session = data?.session;
+        const user = data?.user || session?.user;
 
-        if (sessionError || !sessionData.session) {
+        if (!session || !user) {
           errorMsg.innerText = "Login succeeded, but no session was found.";
           errorMsg.classList.remove('hidden');
           submitBtn.innerHTML = `<span>Sign In</span>`;
           return;
         }
 
+        await ensureProfile(user);
         window.location.href = "/";
       } catch (err) {
         console.error("UNEXPECTED ERROR:", err);
-        errorMsg.innerText = "Unexpected error. Check browser console.";
+        errorMsg.innerText = err?.message || "Unexpected error. Check browser console.";
         errorMsg.classList.remove('hidden');
-        submitBtn.innerHTML = `<span>Sign In</span>`;
+        submitBtn.innerHTML = authMode === 'signup' ? `<span>Create Account</span>` : `<span>Sign In</span>`;
       }
     });
   </script>

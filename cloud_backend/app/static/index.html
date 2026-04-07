@@ -8,14 +8,15 @@
         const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
             auth: { storage: window.sessionStorage }
         });
+        let currentUserId = null;
         document.addEventListener("DOMContentLoaded", async () => {
             try {
                 const { data, error } = await supabaseClient.auth.getSession();
                 if (error || !data.session) { window.location.replace("/static/login.html"); return; }
+                currentUserId = data.session.user?.id || null;
+                await loadDeviceState();
                 fetchHistory();
-                refreshStream();
-                connect();
-                pollStatus();
+                initializeRealtimeForAccess();
             } catch (err) {
                 window.location.replace("/static/login.html");
             }
@@ -89,6 +90,7 @@
                         <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
                         Connecting...
                     </span>
+                    <span id="device-state-badge" class="hidden text-[11px] font-semibold tracking-wide px-2 py-0.5 rounded-full uppercase border"></span>
                 </div>
             </div>
         </div>
@@ -96,7 +98,7 @@
             <button onclick="toggleTheme()" class="w-10 h-10 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-gray-600 dark:text-slate-300 transition-colors">
                 <i id="theme-icon" class="fa-solid fa-moon"></i>
             </button>
-            <button onclick="triggerManualRecord()" class="bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-600 dark:hover:bg-red-500 hover:text-white border border-red-200 dark:border-red-500/30 font-semibold text-sm px-4 py-2 rounded-lg transition-all shadow-sm flex items-center gap-2 cursor-pointer">
+            <button id="manual-record-btn" onclick="triggerManualRecord()" class="bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-600 dark:hover:bg-red-500 hover:text-white border border-red-200 dark:border-red-500/30 font-semibold text-sm px-4 py-2 rounded-lg transition-all shadow-sm flex items-center gap-2 cursor-pointer">
                 <i class="fa-solid fa-video"></i>
                 <span class="hidden sm:inline">Record Clip</span>
             </button>
@@ -156,6 +158,35 @@
             <div class="status-pill"><i class="fa-solid fa-database text-[10px]"></i> <span id="stat-total">Total clips: —</span></div>
         </div>
 
+        <div class="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl shadow-sm p-5 shrink-0 transition-colors duration-200">
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
+                <div class="min-w-0">
+                    <h2 class="font-semibold text-gray-800 dark:text-slate-200 text-sm">Device Access</h2>
+                    <p id="device-access-copy" class="mt-2 text-sm text-gray-500 dark:text-slate-400">
+                        Pair your first doorbell with its pairing code to connect this account.
+                    </p>
+                    <form id="pairing-form" class="mt-4 flex flex-col sm:flex-row gap-2 w-full">
+                        <input id="pairing-code-input" type="text" maxlength="64" placeholder="Enter pairing code" class="w-full sm:w-64 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-4 py-2.5 text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors">
+                        <button id="pairing-submit-btn" type="submit" class="bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm px-4 py-2.5 rounded-lg transition-all shadow-sm whitespace-nowrap">
+                            Pair Device
+                        </button>
+                    </form>
+                </div>
+                <div class="min-w-0">
+                    <h2 class="font-semibold text-gray-800 dark:text-slate-200 text-sm">Invite Family Member</h2>
+                    <p id="invite-copy" class="mt-2 text-sm text-gray-500 dark:text-slate-400">
+                        Only the device owner can share viewer access by email.
+                    </p>
+                    <form id="invite-family-form" class="mt-4 flex flex-col sm:flex-row gap-2 w-full">
+                        <input id="invite-email-input" type="email" maxlength="320" placeholder="family@example.com" class="w-full sm:w-72 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-4 py-2.5 text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors">
+                        <button id="invite-submit-btn" type="submit" class="bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-semibold text-sm px-4 py-2.5 rounded-lg transition-all shadow-sm whitespace-nowrap">
+                            Add Viewer
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
         <!-- GALLERY: Grouped by day, grid layout -->
         <div class="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl shadow-sm flex flex-col p-5 shrink-0 transition-colors duration-200">
             <h2 class="font-semibold text-gray-800 dark:text-slate-200 text-sm mb-4">Recent Captures</h2>
@@ -190,11 +221,12 @@
     const apiBase = `${window.location.protocol}//${window.location.hostname}:${API_PORT}`;
     const wsProto = window.location.protocol === "https:" ? "wss" : "ws";
     const wsUrl = `${wsProto}://${window.location.hostname}:${API_PORT}/ws`;
+    const streamBase = `${window.location.protocol}//${window.location.hostname}:${STREAM_PORT}`;
 
     // --- STREAM ---
     function refreshStream() {
         const streamImg = document.getElementById('live-stream');
-        streamImg.src = `http://${window.location.hostname}:${STREAM_PORT}/stream?t=${Date.now()}`;
+        streamImg.src = `${streamBase}/stream?t=${Date.now()}`;
     }
 
     // --- FULLSCREEN ---
@@ -222,11 +254,199 @@
     // --- UI REFS ---
     const logContainer = document.getElementById('log-container');
     const statusBadge = document.getElementById('status-badge');
+    const deviceStateBadge = document.getElementById('device-state-badge');
     const gallery = document.getElementById('recordings-gallery');
-    const noClipsMsg = document.getElementById('no-clips-msg');
     const recordingOverlay = document.getElementById('recording-overlay');
+    const manualRecordBtn = document.getElementById('manual-record-btn');
+    const deviceAccessCopy = document.getElementById('device-access-copy');
+    const pairingForm = document.getElementById('pairing-form');
+    const pairingCodeInput = document.getElementById('pairing-code-input');
+    const pairingSubmitBtn = document.getElementById('pairing-submit-btn');
+    const inviteCopy = document.getElementById('invite-copy');
+    const inviteFamilyForm = document.getElementById('invite-family-form');
+    const inviteEmailInput = document.getElementById('invite-email-input');
+    const inviteSubmitBtn = document.getElementById('invite-submit-btn');
     let globalSocket = null;
     let reconnectTimer = null;
+    let statusPollTimer = null;
+    let statusPollingStarted = false;
+    let userDevices = [];
+    let userMemberships = [];
+    let activeDevice = null;
+    let accessibleDeviceIds = [];
+
+    function setManualRecordEnabled(enabled) {
+        manualRecordBtn.disabled = !enabled;
+        manualRecordBtn.classList.toggle('opacity-50', !enabled);
+        manualRecordBtn.classList.toggle('cursor-not-allowed', !enabled);
+    }
+
+    function setInviteEnabled(enabled) {
+        inviteEmailInput.disabled = !enabled;
+        inviteSubmitBtn.disabled = !enabled;
+        inviteEmailInput.classList.toggle('opacity-60', !enabled);
+        inviteSubmitBtn.classList.toggle('opacity-50', !enabled);
+        inviteSubmitBtn.classList.toggle('cursor-not-allowed', !enabled);
+    }
+
+    function canManageActiveDevice() {
+        if (!activeDevice) return false;
+        const isClaimed = !!activeDevice.is_claimed || !!activeDevice.owner_id || !!activeDevice.user_id;
+        return isClaimed && activeDevice.access_role === 'owner';
+    }
+
+    async function getBrowserAccessToken() {
+        const { data, error } = await supabaseClient.auth.getSession();
+        if (error) throw error;
+        return data?.session?.access_token || null;
+    }
+
+    function disconnectRealtime() {
+        if (reconnectTimer) {
+            clearTimeout(reconnectTimer);
+            reconnectTimer = null;
+        }
+        if (globalSocket) {
+            globalSocket.onclose = null;
+            if (globalSocket.readyState === WebSocket.OPEN || globalSocket.readyState === WebSocket.CONNECTING) {
+                globalSocket.close();
+            }
+            globalSocket = null;
+        }
+        const streamImg = document.getElementById('live-stream');
+        if (streamImg) {
+            streamImg.removeAttribute('src');
+        }
+    }
+
+    function initializeRealtimeForAccess() {
+        if (!activeDevice) {
+            disconnectRealtime();
+            statusBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span> No Access`;
+            statusBadge.className = "flex items-center gap-1 text-[11px] font-semibold tracking-wide bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 px-2 py-0.5 rounded-full uppercase border border-gray-200 dark:border-slate-700";
+            return;
+        }
+        refreshStream();
+        connect();
+        if (!statusPollingStarted) {
+            statusPollingStarted = true;
+            pollStatus();
+        }
+    }
+
+    function normalizeDeviceRecord(device, accessRole = 'owner') {
+        return { ...device, access_role: accessRole };
+    }
+
+    function getNoClipsMessageElement() {
+        return document.getElementById('no-clips-msg');
+    }
+
+    function escapeFilterValue(value) {
+        return String(value || '').replace(/,/g, '\\,');
+    }
+
+    function renderDeviceState() {
+        if (!activeDevice) {
+            deviceStateBadge.className = "text-[11px] font-semibold tracking-wide px-2 py-0.5 rounded-full uppercase border bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/20";
+            deviceStateBadge.textContent = "No Device Paired";
+            deviceStateBadge.classList.remove('hidden');
+            document.querySelector('h1').textContent = 'No Paired Device';
+            deviceAccessCopy.textContent = 'Pair your first doorbell with its pairing code to connect this account.';
+            inviteCopy.textContent = 'Only the device owner can share viewer access by email.';
+            setInviteEnabled(false);
+            setManualRecordEnabled(false);
+            return;
+        }
+
+        const isClaimed = !!activeDevice.is_claimed || !!activeDevice.owner_id || !!activeDevice.user_id;
+        const isOnline = String(activeDevice.status || '').toLowerCase() === 'online';
+        const isOwner = activeDevice.access_role === 'owner';
+        const stateLabel = isClaimed
+            ? (isOnline ? 'Paired • Online' : 'Paired • Offline')
+            : 'Not Paired';
+
+        deviceStateBadge.className = isClaimed
+            ? `text-[11px] font-semibold tracking-wide px-2 py-0.5 rounded-full uppercase border ${isOnline
+                ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/20'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`
+            : "text-[11px] font-semibold tracking-wide px-2 py-0.5 rounded-full uppercase border bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/20";
+        deviceStateBadge.textContent = stateLabel;
+        deviceStateBadge.classList.remove('hidden');
+        document.querySelector('h1').textContent = activeDevice.name || 'Front Door';
+        setManualRecordEnabled(canManageActiveDevice());
+        setInviteEnabled(isClaimed && isOwner);
+        if (!isClaimed) {
+            deviceAccessCopy.textContent = `Device found${activeDevice.name ? `: ${activeDevice.name}` : ''}, but it has not been claimed yet. Pair it with the device pairing code to finish setup.`;
+            inviteCopy.textContent = 'Claim the device before inviting family members.';
+            return;
+        }
+        if (isOwner) {
+            deviceAccessCopy.textContent = isOnline
+                ? 'This account owns the active doorbell and can view clips, trigger recordings, and manage pairing.'
+                : 'This account owns the active doorbell. The device is currently offline, so new clips will appear after it reconnects.';
+            inviteCopy.textContent = 'Invite family members by email to give them viewer access to this doorbell.';
+            return;
+        }
+        deviceAccessCopy.textContent = isOnline
+            ? 'This account has shared access to the active doorbell through device membership.'
+            : 'This account has shared access to the active doorbell, but the device is currently offline.';
+        inviteCopy.textContent = 'Only the primary device owner can invite additional family members.';
+    }
+
+    function updateEmptyState(hasClips) {
+        if (hasClips) return;
+        const noClipsMsg = getNoClipsMessageElement();
+        if (!noClipsMsg) return;
+        if (!activeDevice) {
+            noClipsMsg.textContent = "No paired device found for this account. Pair a doorbell to start seeing clips here.";
+            return;
+        }
+        if (!activeDevice.is_claimed && !activeDevice.owner_id && !activeDevice.user_id) {
+            noClipsMsg.textContent = "This device is not paired to your account yet. Complete pairing to see clips here.";
+            return;
+        }
+        if (String(activeDevice.status || '').toLowerCase() !== 'online') {
+            noClipsMsg.textContent = "No clips yet. Your paired device is currently offline, so new events will not appear until it reconnects.";
+            return;
+        }
+        noClipsMsg.textContent = activeDevice.access_role === 'owner'
+            ? "No clips yet for this device. It is paired and online, but no events have been recorded yet."
+            : "No shared clips are visible yet for this device. It is paired and online, but no accessible events have been recorded yet.";
+    }
+
+    async function loadDeviceState() {
+        if (!currentUserId) return;
+        try {
+            const accessToken = await getBrowserAccessToken();
+            if (!accessToken) {
+                throw new Error('Missing session token');
+            }
+
+            const response = await fetch(`${apiBase}/api/device-access`, {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`
+                }
+            });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(result.detail || result.error || 'Unable to load device access.');
+            }
+
+            userDevices = (result.devices || []).map(device => normalizeDeviceRecord(device, device.access_role || 'viewer'));
+            userMemberships = userDevices.map(device => ({ device_id: device.device_id, role: device.access_role || 'viewer' }));
+            accessibleDeviceIds = userDevices.map(device => device.device_id).filter(Boolean);
+            activeDevice = userDevices[0] || null;
+        } catch (err) {
+            console.error('Failed to load device state:', err);
+            userDevices = [];
+            userMemberships = [];
+            accessibleDeviceIds = [];
+            activeDevice = null;
+        }
+        renderDeviceState();
+        updateEmptyState(false);
+    }
 
     // --- STATUS BAR ---
     async function pollStatus() {
@@ -244,7 +464,7 @@
                     : `Last event: ${Math.round(ago/60)}h ago`;
             }
         } catch (e) {}
-        setTimeout(pollStatus, 30000);
+        statusPollTimer = setTimeout(pollStatus, 30000);
     }
 
     // --- BADGE HELPER ---
@@ -276,6 +496,7 @@
         if (dayGroups[dayLabel]) return dayGroups[dayLabel];
 
         // Remove empty state
+        const noClipsMsg = getNoClipsMessageElement();
         if (noClipsMsg) noClipsMsg.style.display = 'none';
 
         // Day header
@@ -317,7 +538,7 @@
             }
         }
 
-        const actionBtnHtml = eventId
+        const actionBtnHtml = eventId && canManageActiveDevice()
             ? `<button onclick="deleteEvent(${eventId}, this)" class="text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 w-8 h-8 flex items-center justify-center rounded-lg transition-all flex-shrink-0" title="Delete Clip"><i class="fa-solid fa-trash-can text-xs"></i></button>`
             : `<button disabled class="text-gray-300 dark:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg cursor-default flex-shrink-0"><i class="fa-solid fa-arrows-rotate text-xs"></i></button>`;
 
@@ -346,10 +567,31 @@
     // --- FETCH HISTORY ---
     async function fetchHistory() {
         try {
+            if (!currentUserId) return;
+
+            gallery.innerHTML = `
+                <div class="day-header">
+                    <div id="no-clips-msg" class="text-gray-400 dark:text-slate-500 text-sm py-8 text-center bg-gray-50 dark:bg-slate-800/30 rounded-xl border border-dashed border-gray-200 dark:border-slate-700">
+                        No video clips captured yet.
+                    </div>
+                </div>
+            `;
+            Object.keys(dayGroups).forEach(key => delete dayGroups[key]);
+            const refreshedNoClipsMsg = document.getElementById('no-clips-msg');
+
+            if (accessibleDeviceIds.length === 0) {
+                if (refreshedNoClipsMsg) {
+                    refreshedNoClipsMsg.textContent = "No paired or shared device is linked to this account yet.";
+                }
+                updateEmptyState(false);
+                return;
+            }
+
+            const deviceFilter = accessibleDeviceIds.map(deviceId => `device_id.eq.${escapeFilterValue(deviceId)}`).join(',');
             const { data, error } = await supabaseClient
                 .from('events')
                 .select('*')
-                .eq('device_id', '00000000165a568e')
+                .or(deviceFilter)
                 .order('created_at', { ascending: false })
                 .limit(20);
 
@@ -359,9 +601,13 @@
                 [...data].reverse().forEach(event => {
                     addVideoToGallery(event.video_url, event.created_at, event.event_type, event.id, event.created_at);
                 });
+                updateEmptyState(true);
+            } else {
+                updateEmptyState(false);
             }
         } catch (err) {
             console.error("Failed to load history:", err);
+            updateEmptyState(false);
         }
     }
 
@@ -423,10 +669,150 @@
     }
 
     function triggerManualRecord() {
+        if (!activeDevice) {
+            addLog("No Paired Device", "Pair a device before starting manual recording.", "fa-solid fa-link-slash", "bg-amber-100 text-amber-700", "bg-amber-500/20 text-amber-300");
+            return;
+        }
+        if (!canManageActiveDevice()) {
+            addLog("Owner Action Only", "Only the primary device owner can start manual recording.", "fa-solid fa-user-shield", "bg-amber-100 text-amber-700", "bg-amber-500/20 text-amber-300");
+            return;
+        }
+        if (!activeDevice.is_claimed && !activeDevice.owner_id && !activeDevice.user_id) {
+            addLog("Pairing Required", "Claim this device with its pairing code before starting manual recording.", "fa-solid fa-link", "bg-amber-100 text-amber-700", "bg-amber-500/20 text-amber-300");
+            return;
+        }
         if (globalSocket && globalSocket.readyState === WebSocket.OPEN) {
             globalSocket.send(JSON.stringify({ action: "manual_record" }));
         }
     }
+
+    pairingForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const pairingCode = pairingCodeInput.value.trim();
+        if (!pairingCode || !currentUserId) {
+            return;
+        }
+
+        pairingSubmitBtn.disabled = true;
+        pairingSubmitBtn.textContent = 'Pairing...';
+
+        try {
+            const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+            if (sessionError) throw sessionError;
+
+            const accessToken = sessionData?.session?.access_token;
+            if (!accessToken) {
+                throw new Error('Your session expired. Sign in again to pair this device.');
+            }
+
+            const response = await fetch(`${apiBase}/api/pair-device`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                body: JSON.stringify({ pairing_code: pairingCode })
+            });
+
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(result.detail || result.error || 'Unable to pair device.');
+            }
+
+            const device = result.device || {};
+            const claimedDevice = normalizeDeviceRecord({
+                ...device,
+                owner_id: device.owner_id || currentUserId,
+                user_id: device.user_id || currentUserId,
+                is_claimed: true
+            }, 'owner');
+            userDevices = [claimedDevice];
+            userMemberships = [{ device_id: claimedDevice.device_id, role: 'owner' }];
+            accessibleDeviceIds = claimedDevice.device_id ? [claimedDevice.device_id] : [];
+            activeDevice = claimedDevice;
+            renderDeviceState();
+            updateEmptyState(false);
+            initializeRealtimeForAccess();
+
+            pairingCodeInput.value = '';
+            await fetchHistory();
+            addLog("Device Paired", `${device.name || 'Doorbell'} is now linked to this account.`, "fa-solid fa-link", "bg-emerald-100 text-emerald-700", "bg-emerald-500/20 text-emerald-300");
+        } catch (err) {
+            console.error('Pairing failed:', err);
+            addLog("Pairing Failed", err?.message || "Unable to pair device.", "fa-solid fa-triangle-exclamation", "bg-red-100 text-red-600", "bg-red-500/20 text-red-400");
+        } finally {
+            pairingSubmitBtn.disabled = false;
+            pairingSubmitBtn.textContent = 'Pair Device';
+        }
+    });
+
+    inviteFamilyForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const inviteEmail = inviteEmailInput.value.trim().toLowerCase();
+
+        if (!inviteEmail) {
+            return;
+        }
+        if (!activeDevice || activeDevice.access_role !== 'owner') {
+            addLog("Invite Not Allowed", "Only the primary device owner can add family members.", "fa-solid fa-user-shield", "bg-amber-100 text-amber-700", "bg-amber-500/20 text-amber-300");
+            return;
+        }
+
+        inviteSubmitBtn.disabled = true;
+        inviteSubmitBtn.textContent = 'Adding...';
+
+        try {
+            const { data: profileRows, error: profileError } = await supabaseClient
+                .from('profiles')
+                .select('id, email')
+                .ilike('email', inviteEmail)
+                .limit(1);
+
+            if (profileError) throw profileError;
+
+            const invitedProfile = (profileRows || [])[0];
+            if (!invitedProfile?.id) {
+                throw new Error('No account was found for that email address.');
+            }
+            if (invitedProfile.id === currentUserId) {
+                throw new Error('The device owner already has access.');
+            }
+
+            const { data: existingMembers, error: existingError } = await supabaseClient
+                .from('device_members')
+                .select('id, role')
+                .eq('device_id', activeDevice.device_id)
+                .eq('user_id', invitedProfile.id)
+                .limit(1);
+
+            if (existingError) throw existingError;
+
+            if (existingMembers && existingMembers.length > 0) {
+                addLog("Family Access Exists", `${inviteEmail} already has access to this device.`, "fa-solid fa-user-check", "bg-slate-200 text-slate-700", "bg-slate-700/60 text-slate-200");
+                inviteEmailInput.value = '';
+                return;
+            }
+
+            const { error: insertError } = await supabaseClient
+                .from('device_members')
+                .insert({
+                    device_id: activeDevice.device_id,
+                    user_id: invitedProfile.id,
+                    role: 'viewer'
+                });
+
+            if (insertError) throw insertError;
+
+            inviteEmailInput.value = '';
+            addLog("Family Member Added", `${inviteEmail} can now view clips for ${activeDevice.name || 'this doorbell'}.`, "fa-solid fa-user-plus", "bg-blue-100 text-blue-600", "bg-blue-500/20 text-blue-400");
+        } catch (err) {
+            console.error('Invite failed:', err);
+            addLog("Invite Failed", err?.message || "Unable to add family member.", "fa-solid fa-triangle-exclamation", "bg-red-100 text-red-600", "bg-red-500/20 text-red-400");
+        } finally {
+            inviteSubmitBtn.disabled = activeDevice?.access_role !== 'owner';
+            inviteSubmitBtn.textContent = 'Add Viewer';
+        }
+    });
 
     // --- DELETE (two-step, no confirm dialog) ---
     function deleteEvent(eventId, btnEl = null) {
@@ -475,8 +861,9 @@
                                 grid.remove();
                             }
                         });
-                        if (gallery.querySelectorAll('video').length === 0 && noClipsMsg) {
-                            noClipsMsg.style.display = '';
+                        if (gallery.querySelectorAll('video').length === 0) {
+                            const noClipsMsg = getNoClipsMessageElement();
+                            if (noClipsMsg) noClipsMsg.style.display = '';
                         }
                     }, 200);
                 }

@@ -20,19 +20,50 @@ import subprocess
 import cv2
 import threading
 import time
+import shutil
 from flask import Flask, Response
+
+
+def get_env_int(name: str, default: int) -> int:
+    try:
+        return int(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def get_serial() -> str:
+    cpuserial = "0000000000000000"
+    try:
+        with open("/proc/cpuinfo", "r") as cpuinfo:
+            for line in cpuinfo:
+                if line.startswith("Serial"):
+                    cpuserial = line.split(":", 1)[1].strip()
+                    break
+    except Exception:
+        cpuserial = "TEST_DEVICE_001"
+    return cpuserial
+
 
 # ----------------------------
 # CONFIGURATION
 # ----------------------------
-WS_URI = "ws://192.168.1.232:8000/ws"
-UPLOAD_URL = "http://192.168.1.232:8000/upload"
-SENSOR_PIN = 4
-VIDEO_DURATION = 5  # seconds
+FIRMWARE_DIR = os.path.dirname(os.path.abspath(__file__))
+WS_URI = os.environ.get("DOORBELL_WS_URI", "ws://192.168.1.232:8000/ws")
+UPLOAD_URL = os.environ.get("DOORBELL_UPLOAD_URL", "http://192.168.1.232:8000/upload")
+SENSOR_PIN = get_env_int("DOORBELL_SENSOR_PIN", 4)
+VIDEO_DURATION = get_env_int("DOORBELL_VIDEO_DURATION", 5)
 
-PHYSICAL_CAM_INDEX = 0
-PHYSICAL_CAM_PATH = "/dev/video0"
-AUDIO_DEV = "plughw:1,0"
+PHYSICAL_CAM_INDEX = get_env_int("DOORBELL_CAMERA_INDEX", 0)
+PHYSICAL_CAM_PATH = os.environ.get("DOORBELL_CAMERA_PATH", "/dev/video0")
+AUDIO_DEV = os.environ.get("DOORBELL_AUDIO_DEVICE", "plughw:1,0")
+UPLOAD_TIMEOUT = get_env_int("DOORBELL_UPLOAD_TIMEOUT", 30)
+UPLOAD_RETRY_INTERVAL = get_env_int("DOORBELL_UPLOAD_RETRY_INTERVAL", 15)
+STREAM_HOST = os.environ.get("DOORBELL_STREAM_HOST", "0.0.0.0")
+STREAM_PORT = get_env_int("DOORBELL_STREAM_PORT", 8001)
+SPOOL_DIR = os.environ.get("DOORBELL_SPOOL_DIR", os.path.join(FIRMWARE_DIR, "spool"))
+DEVICE_ID = os.environ.get("DOORBELL_DEVICE_ID", get_serial())
+DEVICE_TOKEN = os.environ.get("DOORBELL_DEVICE_TOKEN", "").strip()
+DEVICE_NAME = os.environ.get("DOORBELL_DEVICE_NAME", "Front Door Main")
 
 # Global lock and state for Hot-Swapping
 cap_lock = threading.Lock()
@@ -50,6 +81,18 @@ GPIO.setup(SENSOR_PIN, GPIO.IN)
 # LIVE STREAM SETUP (Flask & OpenCV)
 # ----------------------------
 app = Flask(__name__)
+
+
+def ensure_spool_dir():
+    os.makedirs(SPOOL_DIR, exist_ok=True)
+
+
+def parse_clip_metadata(filepath: str) -> tuple[str, str]:
+    base_name = os.path.splitext(os.path.basename(filepath))[0]
+    if "_" not in base_name:
+        return "sensor", base_name
+    trigger_type, timestamp = base_name.split("_", 1)
+    return trigger_type, timestamp
 
 def init_camera(retries: int = 5, delay: float = 1.5):
     global cap
@@ -69,6 +112,7 @@ def init_camera(retries: int = 5, delay: float = 1.5):
     print("   [Camera] WARNING: Could not open camera at startup. Stream will retry.")
 
 init_camera()
+ensure_spool_dir()
 
 def generate_frames():
     global cap
@@ -112,7 +156,7 @@ def stream():
     return Response(generate_frames(), mimetype="multipart/x-mixed-replace; boundary=frame")
 
 def start_flask():
-    app.run(host="0.0.0.0", port=8001, debug=False, use_reloader=False, threaded=True)
+    app.run(host=STREAM_HOST, port=STREAM_PORT, debug=False, use_reloader=False, threaded=True)
 
 threading.Thread(target=start_flask, daemon=True).start()
 
@@ -165,12 +209,14 @@ class VideoManager:
     def upload_to_cloud(self, filename: str) -> str | None:
         print("   [Cloud] Uploading video...")
         try:
+            headers = {"X-Device-ID": DEVICE_ID}
+            if DEVICE_TOKEN:
+                headers["X-Device-Token"] = DEVICE_TOKEN
             with open(filename, "rb") as f:
-                file_bytes = f.read()
-            files = {"file": (os.path.basename(filename), file_bytes, "video/mp4")}
-            response = requests.post(UPLOAD_URL, files=files, timeout=30)
+                files = {"file": (os.path.basename(filename), f, "video/mp4")}
+                response = requests.post(UPLOAD_URL, files=files, headers=headers, timeout=UPLOAD_TIMEOUT)
 
-            if response.status_code == 200:
+            if response.status_code in (200, 201):
                 return response.json().get("url")
             print(f"   [Cloud Error] {response.status_code}: {response.text}")
             return None
@@ -180,10 +226,87 @@ class VideoManager:
 
 cam = VideoManager()
 recording_lock = asyncio.Lock()
+upload_lock = asyncio.Lock()
+inflight_uploads = set()
+
+
+def queue_clip_for_retry(filepath: str) -> str:
+    ensure_spool_dir()
+    queued_path = os.path.join(SPOOL_DIR, os.path.basename(filepath))
+    if os.path.abspath(filepath) != os.path.abspath(queued_path):
+        shutil.move(filepath, queued_path)
+    print(f"   [Cloud] Clip queued for retry: {queued_path}")
+    return queued_path
+
+
+async def send_clip_event(websocket, trigger_type: str, timestamp: str, video_url: str | None, queued: bool = False):
+    payload = {
+        "event": "motion" if trigger_type == "sensor" else "manual_record_complete",
+        "status": "queued" if queued else ("detected" if trigger_type == "sensor" else "completed"),
+        "video_url": video_url,
+        "timestamp": timestamp,
+        "queued": queued,
+    }
+
+    try:
+        await websocket.send(json.dumps(payload))
+        print(f"   -> Alert sent! URL: {video_url}")
+    except Exception:
+        pass
+
+
+async def upload_clip(filepath: str) -> str | None:
+    if filepath in inflight_uploads:
+        return None
+
+    async with upload_lock:
+        if filepath in inflight_uploads:
+            return None
+
+        inflight_uploads.add(filepath)
+        loop = asyncio.get_running_loop()
+        try:
+            return await loop.run_in_executor(None, cam.upload_to_cloud, filepath)
+        finally:
+            inflight_uploads.discard(filepath)
+
+
+async def retry_pending_uploads(websocket):
+    while True:
+        try:
+            ensure_spool_dir()
+            pending_files = sorted(
+                os.path.join(SPOOL_DIR, name)
+                for name in os.listdir(SPOOL_DIR)
+                if name.lower().endswith(".mp4")
+            )
+
+            for filepath in pending_files:
+                if filepath in inflight_uploads or not os.path.exists(filepath):
+                    continue
+
+                trigger_type, timestamp = parse_clip_metadata(filepath)
+                video_url = await upload_clip(filepath)
+                if not video_url:
+                    continue
+
+                try:
+                    os.remove(filepath)
+                except Exception as e:
+                    print(f"   [Cloud Error] Uploaded clip could not be deleted: {e}")
+
+                await send_clip_event(websocket, trigger_type, timestamp, video_url)
+
+        except websockets.exceptions.ConnectionClosed:
+            break
+        except Exception as e:
+            print(f"   [Cloud Retry Error] {e}")
+
+        await asyncio.sleep(UPLOAD_RETRY_INTERVAL)
 
 async def execute_recording(websocket, trigger_type: str):
     async with recording_lock:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         print(f"\n!!! {trigger_type.upper()} RECORDING at {timestamp} !!!")
         filename = f"{trigger_type}_{timestamp}.mp4"
@@ -198,27 +321,25 @@ async def execute_recording(websocket, trigger_type: str):
             pass
 
         video_url = None
+        queued = False
         success = await loop.run_in_executor(None, cam.record_clip, filename)
         if success:
-            video_url = await loop.run_in_executor(None, cam.upload_to_cloud, filename)
+            video_url = await upload_clip(filename)
+            if video_url:
+                try:
+                    os.remove(filename)
+                except Exception as e:
+                    print(f"   [Cloud Error] Uploaded clip could not be deleted: {e}")
+            else:
+                queue_clip_for_retry(filename)
+                queued = True
+        elif os.path.exists(filename):
+            try:
+                os.remove(filename)
+            except Exception as e:
+                print(f"   [Camera Error] Failed to remove incomplete clip: {e}")
 
-        try:
-            os.remove(filename)
-        except Exception:
-            pass
-
-        payload = {
-            "event": "motion" if trigger_type == "sensor" else "manual_record_complete",
-            "status": "detected" if trigger_type == "sensor" else "completed",
-            "video_url": video_url,
-            "timestamp": timestamp,
-        }
-
-        try:
-            await websocket.send(json.dumps(payload))
-            print(f"   -> Alert sent! URL: {video_url}")
-        except Exception:
-            pass
+        await send_clip_event(websocket, trigger_type, timestamp, video_url, queued=queued)
 
 async def listen_to_sensor(websocket):
     print(f"   [Sensor] Active on GPIO {SENSOR_PIN}. Waiting for movement...")
@@ -247,15 +368,28 @@ async def listen_to_cloud(websocket):
         if data.get("action") == "manual_record":
             asyncio.create_task(execute_recording(websocket, "manual"))
 
+
+async def authenticate_with_cloud(websocket):
+    payload = {
+        "action": "device_auth",
+        "device_id": DEVICE_ID,
+        "device_name": DEVICE_NAME,
+    }
+    if DEVICE_TOKEN:
+        payload["device_token"] = DEVICE_TOKEN
+    await websocket.send(json.dumps(payload))
+
 async def main():
     print(f"Connecting to Cloud at {WS_URI}...")
     while True:
         try:
             async with websockets.connect(WS_URI) as websocket:
                 print("SUCCESS! Connected.")
+                await authenticate_with_cloud(websocket)
                 await asyncio.gather(
                     listen_to_sensor(websocket),
                     listen_to_cloud(websocket),
+                    retry_pending_uploads(websocket),
                 )
         except Exception as e:
             print(f"Connection Error: {e}. Retrying in 5s...")
