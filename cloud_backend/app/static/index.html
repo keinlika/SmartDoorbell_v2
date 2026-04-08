@@ -1,7 +1,209 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Sentio | Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Manrope', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                        display: ['Space Grotesk', 'ui-sans-serif', 'system-ui', 'sans-serif']
+                    },
+                    colors: {
+                        ink: '#111827',
+                        cloud: '#f6f8fb',
+                        panel: '#ffffff',
+                        brand: '#0f766e',
+                        accent: '#0f172a'
+                    },
+                    boxShadow: {
+                        panel: '0 18px 50px rgba(15, 23, 42, 0.08)',
+                        soft: '0 10px 30px rgba(15, 23, 42, 0.06)'
+                    }
+                }
+            }
+        };
+    </script>
+    <style>
+        :root {
+            --bg-top: #eef6f5;
+            --bg-bottom: #f8fafc;
+            --panel: rgba(255, 255, 255, 0.92);
+            --panel-border: rgba(148, 163, 184, 0.16);
+            --muted: #64748b;
+            --headline: #0f172a;
+            --surface: #f8fafc;
+            --surface-strong: #e2e8f0;
+            --brand: #0f766e;
+            --brand-soft: rgba(15, 118, 110, 0.1);
+            --danger-soft: rgba(220, 38, 38, 0.08);
+        }
+
+        .dark {
+            --bg-top: #0b1324;
+            --bg-bottom: #020617;
+            --panel: rgba(15, 23, 42, 0.9);
+            --panel-border: rgba(148, 163, 184, 0.18);
+            --muted: #b4c0d3;
+            --headline: #f8fafc;
+            --surface: rgba(15, 23, 42, 0.86);
+            --surface-strong: rgba(51, 65, 85, 0.96);
+            --brand: #2dd4bf;
+            --brand-soft: rgba(45, 212, 191, 0.16);
+            --danger-soft: rgba(248, 113, 113, 0.12);
+        }
+
+        html, body {
+            min-height: 100%;
+        }
+
+        body {
+            background:
+                radial-gradient(circle at top left, rgba(15, 118, 110, 0.12), transparent 28%),
+                radial-gradient(circle at top right, rgba(59, 130, 246, 0.08), transparent 24%),
+                linear-gradient(180deg, var(--bg-top), var(--bg-bottom));
+        }
+
+        .panel {
+            background: var(--panel);
+            border: 1px solid var(--panel-border);
+            backdrop-filter: blur(14px);
+            box-shadow: 0 18px 50px rgba(15, 23, 42, 0.06);
+        }
+
+        .surface {
+            background: var(--surface);
+        }
+
+        .surface-strong {
+            background: var(--surface-strong);
+        }
+
+        .eyebrow {
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--muted);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            display: inline-block;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+            border: 1px solid var(--panel-border);
+            background: rgba(255, 255, 255, 0.55);
+        }
+
+        .dark .pill {
+            background: rgba(15, 23, 42, 0.88);
+        }
+
+        .clip-scroll::-webkit-scrollbar,
+        #activity-feed::-webkit-scrollbar,
+        #device-list::-webkit-scrollbar {
+            width: 7px;
+            height: 7px;
+        }
+
+        .clip-scroll::-webkit-scrollbar-thumb,
+        #activity-feed::-webkit-scrollbar-thumb,
+        #device-list::-webkit-scrollbar-thumb {
+            background: rgba(100, 116, 139, 0.45);
+            border-radius: 999px;
+        }
+
+        .metric-card {
+            border: 1px solid var(--panel-border);
+            background: rgba(255, 255, 255, 0.58);
+        }
+
+        .dark .metric-card {
+            background: rgba(15, 23, 42, 0.88);
+        }
+
+        .brand-mark {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            min-width: 0;
+            justify-content: center;
+        }
+
+        .brand-name {
+            font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+            font-size: clamp(1.65rem, 2.4vw, 2.15rem);
+            line-height: 0.98;
+            letter-spacing: -0.05em;
+            font-weight: 700;
+            color: var(--headline);
+        }
+
+        .brand-subline {
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--muted);
+        }
+
+        .step-badge {
+            width: 30px;
+            height: 30px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--brand-soft);
+            color: var(--brand);
+            font-weight: 800;
+            flex-shrink: 0;
+        }
+
+        .clip-card.active {
+            border-color: rgba(15, 118, 110, 0.45);
+            box-shadow: 0 0 0 1px rgba(15, 118, 110, 0.18);
+            background: rgba(15, 118, 110, 0.04);
+        }
+
+        .dark .clip-card.active {
+            border-color: rgba(45, 212, 191, 0.45);
+            box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.2);
+            background: rgba(45, 212, 191, 0.08);
+        }
+
+        .live-shell::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, transparent 60%, rgba(15, 23, 42, 0.6));
+            pointer-events: none;
+            z-index: 1;
+        }
+    </style>
+</head>
+<body class="font-sans text-slate-800 dark:text-slate-100">
     <script>
         const SUPABASE_URL = "https://yxxbvqhczswkppwepkib.supabase.co";
         const SUPABASE_ANON_KEY = "sb_publishable_poiDIRCc2Izbik1RaTZ8vw_lWdumSCH";
@@ -9,284 +211,488 @@
             auth: { storage: window.sessionStorage }
         });
         let currentUserId = null;
-        document.addEventListener("DOMContentLoaded", async () => {
-            try {
-                const { data, error } = await supabaseClient.auth.getSession();
-                if (error || !data.session) { window.location.replace("/static/login.html"); return; }
-                currentUserId = data.session.user?.id || null;
-                await loadDeviceState();
-                fetchHistory();
-                initializeRealtimeForAccess();
-            } catch (err) {
-                window.location.replace("/static/login.html");
-            }
-        });
-        async function logOut() {
-            await supabaseClient.auth.signOut();
-            window.location.replace("/static/login.html");
-        }
     </script>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Smart Doorbell | Live Console</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
-    <script>tailwind.config = { darkMode: 'class' }</script>
-    <style>
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        .dark ::-webkit-scrollbar-thumb { background: #475569; }
-        ::-webkit-scrollbar-track { background: transparent; }
 
-        /* Event type badges */
-        .badge-motion  { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
-        .badge-manual  { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
-        .badge-ring    { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
-        .dark .badge-motion { background: rgba(234,88,12,.15); color: #fb923c; border-color: rgba(234,88,12,.3); }
-        .dark .badge-manual { background: rgba(37,99,235,.15); color: #60a5fa; border-color: rgba(37,99,235,.3); }
-        .dark .badge-ring   { background: rgba(22,163,74,.15); color: #4ade80; border-color: rgba(22,163,74,.3); }
-
-        /* Fullscreen button on hover */
-        #stream-container:hover #fullscreen-btn { opacity: 1; }
-        #fullscreen-btn { opacity: 0; transition: opacity 0.2s; }
-
-        /* Gallery grid */
-        #recordings-gallery {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-            gap: 1rem;
-        }
-
-        /* Day group header spans full width */
-        .day-header {
-            grid-column: 1 / -1;
-        }
-
-        /* Status bar pill */
-        .status-pill {
-            display: flex; align-items: center; gap: 6px;
-            font-size: 11px; font-weight: 600;
-            padding: 3px 10px; border-radius: 999px;
-            background: rgba(100,116,139,.08);
-            border: 1px solid rgba(100,116,139,.15);
-            color: #64748b;
-            white-space: nowrap;
-        }
-        .dark .status-pill { background: rgba(100,116,139,.12); color: #94a3b8; border-color: rgba(100,116,139,.2); }
-    </style>
-</head>
-<body class="bg-gray-50 dark:bg-slate-950 text-gray-800 dark:text-slate-200 font-sans h-screen w-screen overflow-hidden flex flex-col transition-colors duration-200">
-
-    <!-- HEADER -->
-    <header class="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 h-16 flex items-center justify-between px-6 z-20 shrink-0 shadow-sm transition-colors duration-200">
-        <div class="flex items-center gap-4">
-            <div class="flex items-center justify-center w-10 h-10 bg-blue-600 rounded-xl text-white shadow-md">
-                <i class="fa-solid fa-shield-halved text-xl"></i>
-            </div>
-            <div>
-                <h1 class="font-bold text-gray-900 dark:text-white text-lg leading-tight">Front Door</h1>
-                <div class="flex items-center gap-2">
-                    <span id="status-badge" class="flex items-center gap-1 text-[11px] font-semibold tracking-wide bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 px-2 py-0.5 rounded-full uppercase">
-                        <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
-                        Connecting...
-                    </span>
-                    <span id="device-state-badge" class="hidden text-[11px] font-semibold tracking-wide px-2 py-0.5 rounded-full uppercase border"></span>
+    <div class="min-h-screen">
+        <header class="sticky top-0 z-30 h-24 border-b border-white/40 dark:border-slate-800/80 bg-white/78 dark:bg-slate-950/72 backdrop-blur-xl">
+            <div class="max-w-7xl mx-auto h-full px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4">
+                <div class="flex items-center gap-2.5 min-w-0 shrink-0">
+                    <div class="w-12 h-12 rounded-[16px] bg-slate-950 dark:bg-teal-400 text-white dark:text-slate-950 flex items-center justify-center shadow-soft shrink-0">
+                        <i class="fa-solid fa-shield-halved text-lg"></i>
+                    </div>
+                    <div class="brand-mark min-w-0">
+                        <div class="brand-name">Sentio</div>
+                        <div class="flex items-center gap-3 mt-1">
+                            <div class="brand-subline">Home Overview</div>
+                            <span id="connection-pill" class="pill text-slate-600 dark:text-slate-300">
+                                <span class="status-dot bg-slate-400"></span>
+                                <span>Connecting</span>
+                            </span>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        </div>
-        <div class="flex items-center gap-3">
-            <button onclick="toggleTheme()" class="w-10 h-10 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-gray-600 dark:text-slate-300 transition-colors">
-                <i id="theme-icon" class="fa-solid fa-moon"></i>
-            </button>
-            <button id="manual-record-btn" onclick="triggerManualRecord()" class="bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-600 dark:hover:bg-red-500 hover:text-white border border-red-200 dark:border-red-500/30 font-semibold text-sm px-4 py-2 rounded-lg transition-all shadow-sm flex items-center gap-2 cursor-pointer">
-                <i class="fa-solid fa-video"></i>
-                <span class="hidden sm:inline">Record Clip</span>
-            </button>
-            <button onclick="logOut()" class="w-10 h-10 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-red-100 dark:bg-slate-800 dark:hover:bg-red-500/20 text-gray-600 hover:text-red-600 dark:text-slate-300 dark:hover:text-red-400 transition-colors" title="Log Out">
-                <i class="fa-solid fa-arrow-right-from-bracket"></i>
-            </button>
-        </div>
-    </header>
 
-    <!-- MAIN -->
-    <main class="flex-1 p-4 lg:p-6 flex flex-col gap-4 min-h-0 overflow-y-auto w-full max-w-7xl mx-auto">
-
-        <!-- TOP GRID: Live View + Activity Feed -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 shrink-0" style="height:52vh">
-
-            <!-- Live View -->
-            <div class="lg:col-span-2 flex flex-col bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden relative transition-colors duration-200">
-                <div class="px-4 py-3 border-b border-gray-100 dark:border-slate-800 flex justify-between items-center bg-gray-50/50 dark:bg-slate-800/40">
-                    <span class="font-medium text-sm text-gray-600 dark:text-slate-300 flex items-center gap-2">
-                        <i class="fa-solid fa-circle text-red-500 text-[8px] animate-pulse"></i>
-                        Live View
-                    </span>
-                    <span id="timestamp-ui" class="text-sm text-gray-500 dark:text-slate-400 font-medium">00:00:00</span>
-                </div>
-                <div id="stream-container" class="flex-1 bg-black relative flex items-center justify-center">
-                    <img id="live-stream" src="" class="w-full h-full object-contain z-10" alt="Live Feed">
-
-                    <!-- Fullscreen button (appears on hover) -->
-                    <button id="fullscreen-btn" onclick="toggleFullscreen()" title="Fullscreen"
-                        class="absolute top-3 right-3 z-30 w-9 h-9 flex items-center justify-center rounded-lg bg-black/50 hover:bg-black/80 text-white transition-all">
-                        <i class="fa-solid fa-expand text-sm"></i>
+                <div class="flex items-center gap-3 min-w-0">
+                    <div class="panel rounded-2xl px-3 py-2 flex items-center gap-3 min-w-0">
+                        <div class="text-xs text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-[0.18em]">Active Device</div>
+                        <select id="device-selector" class="bg-transparent text-sm font-semibold text-slate-900 dark:text-slate-100 outline-none min-w-[180px]">
+                            <option>Loading devices...</option>
+                        </select>
+                    </div>
+                    <button id="manual-record-btn" onclick="triggerManualRecord()" class="rounded-2xl bg-slate-950 hover:bg-slate-800 dark:bg-teal-400 dark:hover:bg-teal-300 text-white dark:text-slate-950 px-4 py-3 text-sm font-bold shadow-soft transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-video"></i>
+                        Record Clip
                     </button>
+                    <button onclick="toggleTheme()" class="w-12 h-12 rounded-2xl panel flex items-center justify-center text-slate-600 dark:text-slate-300" aria-label="Toggle theme">
+                        <i id="theme-icon" class="fa-solid fa-moon"></i>
+                    </button>
+                    <button onclick="logOut()" class="rounded-2xl panel px-4 py-3 text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                        Sign Out
+                    </button>
+                </div>
+            </div>
+        </header>
 
-                    <!-- Recording overlay -->
-                    <div id="recording-overlay" class="absolute inset-0 z-40 bg-gray-900/60 backdrop-blur-sm hidden flex-col items-center justify-center">
-                        <i class="fa-solid fa-circle-notch fa-spin text-white text-4xl mb-3"></i>
-                        <span class="text-white font-medium tracking-wide">Saving Video Clip...</span>
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-6">
+            <section class="grid grid-cols-1 xl:grid-cols-12 gap-6">
+                <div class="xl:col-span-8 panel rounded-[28px] p-6 lg:p-7">
+                    <div class="flex flex-col gap-4 lg:flex-row lg:justify-between lg:items-start">
+                        <div class="max-w-2xl">
+                            <div class="eyebrow">Overview</div>
+                            <h1 class="mt-3 font-display text-4xl lg:text-5xl font-bold tracking-tight text-slate-950 dark:text-white">Sentio Dashboard</h1>
+                            <h2 id="hero-device-name" class="mt-2 font-display text-2xl lg:text-3xl font-bold tracking-tight text-slate-950 dark:text-white">Preparing your workspace</h2>
+                            <p id="hero-copy" class="mt-2 text-sm lg:text-base text-slate-600 dark:text-slate-300 leading-7">
+                                The dashboard is loading your device workspace, capture history, and current account access.
+                            </p>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-0 lg:min-w-[320px]">
+                            <div class="metric-card rounded-2xl p-4">
+                                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Workspace</div>
+                                <div id="workspace-health" class="mt-3 text-xl font-bold text-slate-950 dark:text-white">Loading</div>
+                                <div id="workspace-subcopy" class="mt-1 text-sm text-slate-500 dark:text-slate-400">Checking account access</div>
+                            </div>
+                            <div class="metric-card rounded-2xl p-4">
+                                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Retention</div>
+                                <div id="retention-value" class="mt-3 text-xl font-bold text-slate-950 dark:text-white">--</div>
+                                <div id="retention-copy" class="mt-1 text-sm text-slate-500 dark:text-slate-400">Loading storage policy</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+                        <div class="metric-card rounded-2xl p-4">
+                            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Devices</div>
+                            <div id="metric-devices" class="mt-2 text-2xl font-bold text-slate-950 dark:text-white">0</div>
+                            <div class="text-sm text-slate-500 dark:text-slate-400">Accessible</div>
+                        </div>
+                        <div class="metric-card rounded-2xl p-4">
+                            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Online</div>
+                            <div id="metric-online" class="mt-2 text-2xl font-bold text-slate-950 dark:text-white">0</div>
+                            <div class="text-sm text-slate-500 dark:text-slate-400">Live now</div>
+                        </div>
+                        <div class="metric-card rounded-2xl p-4">
+                            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Clips Today</div>
+                            <div id="metric-today" class="mt-2 text-2xl font-bold text-slate-950 dark:text-white">0</div>
+                            <div class="text-sm text-slate-500 dark:text-slate-400">Recent activity</div>
+                        </div>
+                        <div class="metric-card rounded-2xl p-4">
+                            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Storage</div>
+                            <div id="metric-storage" class="mt-2 text-2xl font-bold text-slate-950 dark:text-white">0 MB</div>
+                            <div id="metric-storage-copy" class="text-sm text-slate-500 dark:text-slate-400">Within current retention window</div>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Activity Feed -->
-            <div class="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl shadow-sm flex flex-col min-h-0 overflow-hidden transition-colors duration-200">
-                <div class="px-4 py-3 border-b border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-800/40 flex justify-between items-center shrink-0">
-                    <h2 class="font-semibold text-gray-800 dark:text-slate-200 text-sm">Activity Feed</h2>
-                    <i class="fa-solid fa-list-ul text-gray-400 dark:text-slate-500"></i>
-                </div>
-                <div id="log-container" class="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/30 dark:bg-slate-900/50"></div>
-            </div>
-        </div>
+                <div class="xl:col-span-4 panel rounded-[28px] p-6 lg:p-7">
+                    <div class="flex items-center justify-between gap-3">
+                        <div>
+                            <div class="eyebrow">Storage Policy</div>
+                            <h3 class="mt-2 text-xl font-bold text-slate-950 dark:text-white">Quota and retention</h3>
+                        </div>
+                        <div class="w-11 h-11 rounded-2xl bg-teal-50 dark:bg-teal-400/10 text-teal-700 dark:text-teal-300 flex items-center justify-center">
+                            <i class="fa-solid fa-database"></i>
+                        </div>
+                    </div>
 
-        <!-- STATUS BAR -->
-        <div id="status-bar" class="flex flex-wrap gap-2 items-center shrink-0 px-1">
-            <div class="status-pill"><i class="fa-solid fa-server text-[10px]"></i> <span id="stat-uptime">Uptime: —</span></div>
-            <div class="status-pill"><i class="fa-solid fa-film text-[10px]"></i> <span id="stat-clips">Clips today: —</span></div>
-            <div class="status-pill"><i class="fa-solid fa-clock-rotate-left text-[10px]"></i> <span id="stat-last">Last event: —</span></div>
-            <div class="status-pill"><i class="fa-solid fa-database text-[10px]"></i> <span id="stat-total">Total clips: —</span></div>
-        </div>
-
-        <div class="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl shadow-sm p-5 shrink-0 transition-colors duration-200">
-            <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
-                <div class="min-w-0">
-                    <h2 class="font-semibold text-gray-800 dark:text-slate-200 text-sm">Device Access</h2>
-                    <p id="device-access-copy" class="mt-2 text-sm text-gray-500 dark:text-slate-400">
-                        Pair your first doorbell with its pairing code to connect this account.
-                    </p>
-                    <form id="pairing-form" class="mt-4 flex flex-col sm:flex-row gap-2 w-full">
-                        <input id="pairing-code-input" type="text" maxlength="64" placeholder="Enter pairing code" class="w-full sm:w-64 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-4 py-2.5 text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors">
-                        <button id="pairing-submit-btn" type="submit" class="bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm px-4 py-2.5 rounded-lg transition-all shadow-sm whitespace-nowrap">
-                            Pair Device
-                        </button>
-                    </form>
-                </div>
-                <div class="min-w-0">
-                    <h2 class="font-semibold text-gray-800 dark:text-slate-200 text-sm">Invite Family Member</h2>
-                    <p id="invite-copy" class="mt-2 text-sm text-gray-500 dark:text-slate-400">
-                        Only the device owner can share viewer access by email.
-                    </p>
-                    <form id="invite-family-form" class="mt-4 flex flex-col sm:flex-row gap-2 w-full">
-                        <input id="invite-email-input" type="email" maxlength="320" placeholder="family@example.com" class="w-full sm:w-72 bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg px-4 py-2.5 text-sm text-gray-900 dark:text-slate-100 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors">
-                        <button id="invite-submit-btn" type="submit" class="bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-semibold text-sm px-4 py-2.5 rounded-lg transition-all shadow-sm whitespace-nowrap">
-                            Add Viewer
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <!-- GALLERY: Grouped by day, grid layout -->
-        <div class="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl shadow-sm flex flex-col p-5 shrink-0 transition-colors duration-200">
-            <h2 class="font-semibold text-gray-800 dark:text-slate-200 text-sm mb-4">Recent Captures</h2>
-            <div id="recordings-gallery">
-                <div class="day-header">
-                    <div id="no-clips-msg" class="text-gray-400 dark:text-slate-500 text-sm py-8 text-center bg-gray-50 dark:bg-slate-800/30 rounded-xl border border-dashed border-gray-200 dark:border-slate-700">
-                        No video clips captured yet.
+                    <div class="mt-6 space-y-4">
+                        <div class="surface rounded-2xl p-4">
+                            <div class="flex items-center justify-between text-sm">
+                                <span class="text-slate-500 dark:text-slate-400">Current footprint</span>
+                                <span id="storage-footprint" class="font-bold text-slate-950 dark:text-white">0 MB</span>
+                            </div>
+                            <div class="mt-3 h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+                                <div id="storage-bar" class="h-full rounded-full bg-teal-600 dark:bg-teal-400" style="width: 0%"></div>
+                            </div>
+                            <div id="storage-caption" class="mt-3 text-sm text-slate-500 dark:text-slate-400">Storage usage is calculated from clips visible to this account.</div>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div class="surface rounded-2xl p-4">
+                                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Retention</div>
+                                <div id="storage-retention" class="mt-2 text-lg font-bold text-slate-950 dark:text-white">-- days</div>
+                                <div class="mt-1 text-sm text-slate-500 dark:text-slate-400">Automatic cleanup</div>
+                            </div>
+                            <div class="surface rounded-2xl p-4">
+                                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Storage limit</div>
+                                <div id="storage-quota" class="mt-2 text-lg font-bold text-slate-950 dark:text-white">Unlimited</div>
+                                <div class="mt-1 text-sm text-slate-500 dark:text-slate-400">No hard cap exposed by backend</div>
+                            </div>
+                        </div>
+                        <div class="surface rounded-2xl p-4">
+                            <div class="flex items-start gap-3">
+                                <div class="w-10 h-10 rounded-2xl bg-slate-950 dark:bg-slate-800 text-white dark:text-slate-200 flex items-center justify-center shrink-0">
+                                    <i class="fa-solid fa-clock-rotate-left"></i>
+                                </div>
+                                <div>
+                                    <div class="font-semibold text-slate-950 dark:text-white">Clear storage expectations</div>
+                                    <div id="storage-policy-copy" class="mt-1 text-sm text-slate-500 dark:text-slate-400">Retention and recent capture footprint update automatically for the selected device.</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
+            </section>
+
+            <section class="grid grid-cols-1 xl:grid-cols-12 gap-6">
+                <div class="xl:col-span-8 space-y-6">
+                    <div class="panel rounded-[28px] overflow-hidden">
+                        <div class="px-6 py-5 border-b border-slate-200/70 dark:border-slate-800/80 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                            <div>
+                                <div class="eyebrow">Live Monitor</div>
+                                <h3 class="mt-2 text-xl font-bold text-slate-950 dark:text-white">Doorstep preview</h3>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span id="live-device-pill" class="pill text-slate-600 dark:text-slate-300">No device selected</span>
+                                <span id="device-role-pill" class="pill text-slate-600 dark:text-slate-300">Viewer</span>
+                                <button onclick="toggleFullscreen()" class="pill text-slate-700 dark:text-slate-200">
+                                    <i class="fa-solid fa-expand"></i>
+                                    Fullscreen
+                                </button>
+                            </div>
+                        </div>
+                        <div id="stream-container" class="live-shell relative aspect-video bg-slate-950 flex items-center justify-center overflow-hidden">
+                            <img id="live-stream" src="" alt="Live stream" class="w-full h-full object-contain">
+                            <div id="live-empty-state" class="absolute inset-0 z-10 flex flex-col items-center justify-center text-center px-6">
+                                <div class="w-14 h-14 rounded-2xl bg-white/10 text-white flex items-center justify-center">
+                                    <i class="fa-solid fa-camera text-xl"></i>
+                                </div>
+                                <div class="mt-4 text-xl font-bold text-white">Waiting for live feed</div>
+                                <div id="live-empty-copy" class="mt-2 text-sm text-slate-300 max-w-md">Select a paired device to begin monitoring, or wait for the active device to come online.</div>
+                            </div>
+                            <div id="recording-overlay" class="absolute inset-0 z-20 hidden items-center justify-center bg-slate-950/60 backdrop-blur-sm">
+                                <div class="rounded-3xl bg-white/10 px-6 py-5 text-center text-white border border-white/10">
+                                    <i class="fa-solid fa-circle-notch fa-spin text-3xl"></i>
+                                    <div class="mt-3 font-semibold">Saving clip from active device</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="px-6 py-4 border-t border-slate-200/70 dark:border-slate-800/80 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                            <div class="flex flex-wrap gap-2">
+                                <span id="live-status-pill" class="pill text-slate-600 dark:text-slate-300">Idle</span>
+                                <span id="live-updated-pill" class="pill text-slate-600 dark:text-slate-300">No recent event</span>
+                            </div>
+                            <div id="live-detail-copy" class="text-sm text-slate-500 dark:text-slate-400">Live preview pauses briefly while the selected device records and uploads a clip.</div>
+                        </div>
+                    </div>
+
+                    <div class="panel rounded-[28px] p-6">
+                        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                            <div>
+                                <div class="eyebrow">Recent Captures</div>
+                                <h3 class="mt-2 text-xl font-bold text-slate-950 dark:text-white">Review captured events</h3>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span id="capture-count-pill" class="pill text-slate-600 dark:text-slate-300">0 clips</span>
+                                <button id="refresh-gallery-btn" class="pill text-slate-700 dark:text-slate-200">
+                                    <i class="fa-solid fa-rotate-right"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="mt-6 grid grid-cols-1 xl:grid-cols-12 gap-5">
+                            <div class="xl:col-span-7 surface rounded-[24px] overflow-hidden border border-slate-200/70 dark:border-slate-800/80">
+                                <div id="featured-clip-empty" class="aspect-video flex flex-col items-center justify-center text-center px-6">
+                                    <div class="w-14 h-14 rounded-2xl bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center">
+                                        <i class="fa-solid fa-film text-xl"></i>
+                                    </div>
+                                    <div class="mt-4 text-xl font-bold text-slate-950 dark:text-white">No activity yet</div>
+                                    <div id="featured-empty-copy" class="mt-2 text-sm text-slate-500 dark:text-slate-400 max-w-md">Once this device records a motion or manual event, clips will appear here for review.</div>
+                                </div>
+                                <div id="featured-clip-shell" class="hidden">
+                                    <div class="aspect-video bg-black">
+                                        <video id="featured-video" class="w-full h-full object-contain" controls preload="metadata"></video>
+                                    </div>
+                                    <div class="p-5 border-t border-slate-200/70 dark:border-slate-800/80">
+                                        <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                            <div>
+                                                <div id="featured-badge" class="pill w-fit text-slate-700 dark:text-slate-200">Motion</div>
+                                                <div id="featured-title" class="mt-3 text-lg font-bold text-slate-950 dark:text-white">Capture</div>
+                                                <div id="featured-subtitle" class="mt-1 text-sm text-slate-500 dark:text-slate-400">Recorded just now</div>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <a id="featured-download" href="#" target="_blank" class="pill text-slate-700 dark:text-slate-200">
+                                                    <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                                                    Open
+                                                </a>
+                                                <button id="featured-delete-btn" class="pill text-red-600 dark:text-red-300 hidden">
+                                                    <i class="fa-solid fa-trash-can"></i>
+                                                    Delete
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="xl:col-span-5 surface rounded-[24px] border border-slate-200/70 dark:border-slate-800/80 overflow-hidden">
+                                <div class="px-5 py-4 border-b border-slate-200/70 dark:border-slate-800/80 flex items-center justify-between">
+                                    <div class="text-sm font-semibold text-slate-900 dark:text-slate-100">Capture Queue</div>
+                                    <div id="capture-queue-copy" class="text-xs text-slate-500 dark:text-slate-400">Newest first</div>
+                                </div>
+                                <div id="clip-list" class="clip-scroll max-h-[32rem] overflow-y-auto p-3 space-y-3">
+                                    <div id="clip-list-empty" class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 px-5 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
+                                        Capture history will populate here after pairing and recording.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="xl:col-span-4 space-y-6">
+                    <div class="panel rounded-[28px] p-6">
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <div class="eyebrow">Device Management</div>
+                                <h3 class="mt-2 text-xl font-bold text-slate-950 dark:text-white">Selected device</h3>
+                            </div>
+                            <div class="w-11 h-11 rounded-2xl bg-slate-950 dark:bg-slate-800 text-white dark:text-slate-200 flex items-center justify-center">
+                                <i class="fa-solid fa-house-signal"></i>
+                            </div>
+                        </div>
+                        <div class="mt-5 space-y-4">
+                            <div id="device-state-card" class="surface rounded-2xl p-4">
+                                <div class="flex items-center justify-between gap-3">
+                                    <div>
+                                        <div id="device-state-name" class="font-bold text-slate-950 dark:text-white">No active device</div>
+                                        <div id="device-state-copy" class="mt-1 text-sm text-slate-500 dark:text-slate-400">Pair a doorbell to begin setup.</div>
+                                    </div>
+                                    <span id="device-state-badge" class="pill text-slate-600 dark:text-slate-300">Unpaired</span>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div class="surface rounded-2xl p-4">
+                                    <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Role</div>
+                                    <div id="device-role-value" class="mt-2 text-base font-bold text-slate-950 dark:text-white">Viewer</div>
+                                </div>
+                                <div class="surface rounded-2xl p-4">
+                                    <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Last Event</div>
+                                    <div id="device-last-event" class="mt-2 text-base font-bold text-slate-950 dark:text-white">--</div>
+                                </div>
+                            </div>
+                            <div class="surface rounded-2xl p-4">
+                                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Devices in account</div>
+                                <div id="device-list" class="mt-3 max-h-48 overflow-y-auto space-y-2"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel rounded-[28px] p-6">
+                        <div class="eyebrow">Guided Pairing</div>
+                        <h3 class="mt-2 text-xl font-bold text-slate-950 dark:text-white">Onboard a new doorbell</h3>
+                        <div class="mt-5 space-y-4">
+                            <div class="flex items-start gap-3">
+                                <div class="step-badge">1</div>
+                                <div>
+                                    <div class="font-semibold text-slate-950 dark:text-white">Power the device and connect it to the network</div>
+                                    <div class="mt-1 text-sm text-slate-500 dark:text-slate-400">The doorbell should appear as ready for pairing once its backend registration completes.</div>
+                                </div>
+                            </div>
+                            <div class="flex items-start gap-3">
+                                <div class="step-badge">2</div>
+                                <div>
+                                    <div class="font-semibold text-slate-950 dark:text-white">Enter the pairing code shown during provisioning</div>
+                                    <div class="mt-1 text-sm text-slate-500 dark:text-slate-400">Pairing claims the device to this account and unlocks recording controls.</div>
+                                </div>
+                            </div>
+                            <div class="flex items-start gap-3">
+                                <div class="step-badge">3</div>
+                                <div>
+                                    <div class="font-semibold text-slate-950 dark:text-white">Confirm live preview and first capture</div>
+                                    <div class="mt-1 text-sm text-slate-500 dark:text-slate-400">Use a manual recording to validate stream, clip upload, and gallery flow.</div>
+                                </div>
+                            </div>
+                        </div>
+                        <form id="pairing-form" class="mt-6 flex flex-col gap-3">
+                            <label class="text-sm font-semibold text-slate-700 dark:text-slate-300" for="pairing-code-input">Pairing code</label>
+                            <input id="pairing-code-input" type="text" maxlength="64" placeholder="Enter pairing code" class="surface rounded-2xl border border-slate-200 dark:border-slate-700 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-600/20">
+                            <button id="pairing-submit-btn" type="submit" class="rounded-2xl bg-teal-700 hover:bg-teal-600 dark:bg-teal-400 dark:hover:bg-teal-300 text-white dark:text-slate-950 px-4 py-3 text-sm font-bold transition-colors">
+                                Pair Device
+                            </button>
+                            <div id="pairing-feedback" class="text-sm text-slate-500 dark:text-slate-400">No device is paired to this account yet.</div>
+                        </form>
+                    </div>
+
+                    <div class="panel rounded-[28px] p-6">
+                        <div class="eyebrow">Access Control</div>
+                        <h3 class="mt-2 text-xl font-bold text-slate-950 dark:text-white">Share viewer access</h3>
+                        <p id="invite-copy" class="mt-3 text-sm text-slate-500 dark:text-slate-400">Only the device owner can invite family members to view clips.</p>
+                        <form id="invite-family-form" class="mt-5 flex flex-col gap-3">
+                            <input id="invite-email-input" type="email" maxlength="320" placeholder="family@example.com" class="surface rounded-2xl border border-slate-200 dark:border-slate-700 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-slate-900 dark:focus:border-slate-100 focus:ring-2 focus:ring-slate-900/10 dark:focus:ring-slate-100/10">
+                            <button id="invite-submit-btn" type="submit" class="rounded-2xl bg-slate-950 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white px-4 py-3 text-sm font-bold transition-colors">
+                                Add Viewer
+                            </button>
+                        </form>
+                    </div>
+
+                    <div class="panel rounded-[28px] p-6">
+                        <div class="flex items-center justify-between gap-3">
+                            <div>
+                                <div class="eyebrow">Activity Feed</div>
+                                <h3 class="mt-2 text-xl font-bold text-slate-950 dark:text-white">Operational events</h3>
+                            </div>
+                            <div id="activity-count-pill" class="pill text-slate-600 dark:text-slate-300">0 items</div>
+                        </div>
+                        <div id="activity-feed" class="mt-5 max-h-[30rem] overflow-y-auto space-y-3">
+                            <div class="surface rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 px-5 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+                                Device and account activity will appear here.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="px-4 sm:px-6 lg:px-8 pb-6">
+            <div class="max-w-7xl mx-auto text-center text-xs text-slate-500 dark:text-slate-400">
+                &copy; 2026 SentioSmartHome
             </div>
-        </div>
-    </main>
+        </footer>
+    </div>
 
 <script>
-    // --- THEME ---
     const htmlEl = document.documentElement;
     const themeIcon = document.getElementById('theme-icon');
     if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-        htmlEl.classList.add('dark'); themeIcon.className = 'fa-solid fa-sun';
-    }
-    function toggleTheme() {
-        if (htmlEl.classList.contains('dark')) {
-            htmlEl.classList.remove('dark'); localStorage.theme = 'light'; themeIcon.className = 'fa-solid fa-moon';
-        } else {
-            htmlEl.classList.add('dark'); localStorage.theme = 'dark'; themeIcon.className = 'fa-solid fa-sun';
-        }
+        htmlEl.classList.add('dark');
+        themeIcon.className = 'fa-solid fa-sun';
     }
 
-    // --- CONFIG ---
-    const API_PORT = window.location.port ? parseInt(window.location.port) : 8000;
+    function toggleTheme() {
+        if (htmlEl.classList.contains('dark')) {
+            htmlEl.classList.remove('dark');
+            localStorage.theme = 'light';
+            themeIcon.className = 'fa-solid fa-moon';
+            return;
+        }
+        htmlEl.classList.add('dark');
+        localStorage.theme = 'dark';
+        themeIcon.className = 'fa-solid fa-sun';
+    }
+
+    const API_PORT = window.location.port ? parseInt(window.location.port, 10) : 8000;
     const STREAM_PORT = 8001;
     const apiBase = `${window.location.protocol}//${window.location.hostname}:${API_PORT}`;
     const wsProto = window.location.protocol === "https:" ? "wss" : "ws";
     const wsUrl = `${wsProto}://${window.location.hostname}:${API_PORT}/ws`;
     const streamBase = `${window.location.protocol}//${window.location.hostname}:${STREAM_PORT}`;
 
-    // --- STREAM ---
-    function refreshStream() {
-        const streamImg = document.getElementById('live-stream');
-        streamImg.src = `${streamBase}/stream?t=${Date.now()}`;
-    }
-
-    // --- FULLSCREEN ---
-    function toggleFullscreen() {
-        const container = document.getElementById('stream-container');
-        const btn = document.getElementById('fullscreen-btn');
-        if (!document.fullscreenElement) {
-            container.requestFullscreen().then(() => {
-                btn.innerHTML = '<i class="fa-solid fa-compress text-sm"></i>';
-            });
-        } else {
-            document.exitFullscreen().then(() => {
-                btn.innerHTML = '<i class="fa-solid fa-expand text-sm"></i>';
-            });
-        }
-    }
-    document.addEventListener('fullscreenchange', () => {
-        const btn = document.getElementById('fullscreen-btn');
-        if (!document.fullscreenElement) {
-            btn.innerHTML = '<i class="fa-solid fa-expand text-sm"></i>';
-            btn.style.opacity = '';
-        }
-    });
-
-    // --- UI REFS ---
-    const logContainer = document.getElementById('log-container');
-    const statusBadge = document.getElementById('status-badge');
-    const deviceStateBadge = document.getElementById('device-state-badge');
-    const gallery = document.getElementById('recordings-gallery');
-    const recordingOverlay = document.getElementById('recording-overlay');
+    const connectionPill = document.getElementById('connection-pill');
+    const deviceSelector = document.getElementById('device-selector');
     const manualRecordBtn = document.getElementById('manual-record-btn');
-    const deviceAccessCopy = document.getElementById('device-access-copy');
+    const inviteCopy = document.getElementById('invite-copy');
     const pairingForm = document.getElementById('pairing-form');
     const pairingCodeInput = document.getElementById('pairing-code-input');
     const pairingSubmitBtn = document.getElementById('pairing-submit-btn');
-    const inviteCopy = document.getElementById('invite-copy');
+    const pairingFeedback = document.getElementById('pairing-feedback');
     const inviteFamilyForm = document.getElementById('invite-family-form');
     const inviteEmailInput = document.getElementById('invite-email-input');
     const inviteSubmitBtn = document.getElementById('invite-submit-btn');
+    const recordingOverlay = document.getElementById('recording-overlay');
+    const liveStream = document.getElementById('live-stream');
+    const liveEmptyState = document.getElementById('live-empty-state');
+    const liveEmptyCopy = document.getElementById('live-empty-copy');
+    const liveDevicePill = document.getElementById('live-device-pill');
+    const deviceRolePill = document.getElementById('device-role-pill');
+    const activityFeed = document.getElementById('activity-feed');
+    const clipList = document.getElementById('clip-list');
+    const refreshGalleryBtn = document.getElementById('refresh-gallery-btn');
+    const featuredClipShell = document.getElementById('featured-clip-shell');
+    const featuredClipEmpty = document.getElementById('featured-clip-empty');
+    const featuredVideo = document.getElementById('featured-video');
+    const featuredBadge = document.getElementById('featured-badge');
+    const featuredTitle = document.getElementById('featured-title');
+    const featuredSubtitle = document.getElementById('featured-subtitle');
+    const featuredDownload = document.getElementById('featured-download');
+    const featuredDeleteBtn = document.getElementById('featured-delete-btn');
+
     let globalSocket = null;
     let reconnectTimer = null;
-    let statusPollTimer = null;
-    let statusPollingStarted = false;
     let userDevices = [];
-    let userMemberships = [];
     let activeDevice = null;
     let accessibleDeviceIds = [];
+    let allEvents = [];
+    let selectedClipId = null;
+    let activityCount = 0;
+
+    function formatBytes(bytes) {
+        const value = Number(bytes) || 0;
+        if (value < 1024) return `${value} B`;
+        const units = ['KB', 'MB', 'GB', 'TB'];
+        let size = value / 1024;
+        let unitIndex = 0;
+        while (size >= 1024 && unitIndex < units.length - 1) {
+            size /= 1024;
+            unitIndex += 1;
+        }
+        return `${size.toFixed(size >= 10 ? 0 : 1)} ${units[unitIndex]}`;
+    }
+
+    function formatDateTime(dateValue) {
+        if (!dateValue) return 'No activity yet';
+        const date = new Date(dateValue);
+        return date.toLocaleString([], {
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit'
+        });
+    }
+
+    function formatRelativeTime(dateValue) {
+        if (!dateValue) return 'No recent event';
+        const diffMs = Date.now() - new Date(dateValue).getTime();
+        const minutes = Math.max(1, Math.round(diffMs / 60000));
+        if (minutes < 60) return `${minutes} min ago`;
+        const hours = Math.round(minutes / 60);
+        if (hours < 24) return `${hours} hr ago`;
+        const days = Math.round(hours / 24);
+        return `${days} day${days === 1 ? '' : 's'} ago`;
+    }
+
+    function eventMeta(eventType) {
+        const map = {
+            motion: { label: 'Motion', icon: 'fa-person-walking', classes: 'text-amber-700 dark:text-amber-300' },
+            manual: { label: 'Manual', icon: 'fa-hand-pointer', classes: 'text-blue-700 dark:text-blue-300' },
+            ring: { label: 'Doorbell', icon: 'fa-bell', classes: 'text-emerald-700 dark:text-emerald-300' }
+        };
+        return map[eventType] || map.motion;
+    }
+
+    function setConnectionState(label, dotClass, extraClasses = '') {
+        connectionPill.className = `pill ${extraClasses}`.trim();
+        connectionPill.innerHTML = `<span class="status-dot ${dotClass}"></span><span>${label}</span>`;
+    }
 
     function setManualRecordEnabled(enabled) {
         manualRecordBtn.disabled = !enabled;
-        manualRecordBtn.classList.toggle('opacity-50', !enabled);
-        manualRecordBtn.classList.toggle('cursor-not-allowed', !enabled);
     }
 
     function setInviteEnabled(enabled) {
         inviteEmailInput.disabled = !enabled;
         inviteSubmitBtn.disabled = !enabled;
         inviteEmailInput.classList.toggle('opacity-60', !enabled);
-        inviteSubmitBtn.classList.toggle('opacity-50', !enabled);
-        inviteSubmitBtn.classList.toggle('cursor-not-allowed', !enabled);
     }
 
     function canManageActiveDevice() {
@@ -301,6 +707,25 @@
         return data?.session?.access_token || null;
     }
 
+    function refreshStream() {
+        if (!activeDevice) {
+            liveStream.removeAttribute('src');
+            liveEmptyState.classList.remove('hidden');
+            return;
+        }
+        liveStream.src = `${streamBase}/stream?t=${Date.now()}`;
+        liveEmptyState.classList.add('hidden');
+    }
+
+    function toggleFullscreen() {
+        const container = document.getElementById('stream-container');
+        if (!document.fullscreenElement) {
+            container.requestFullscreen();
+            return;
+        }
+        document.exitFullscreen();
+    }
+
     function disconnectRealtime() {
         if (reconnectTimer) {
             clearTimeout(reconnectTimer);
@@ -313,433 +738,457 @@
             }
             globalSocket = null;
         }
-        const streamImg = document.getElementById('live-stream');
-        if (streamImg) {
-            streamImg.removeAttribute('src');
-        }
-    }
-
-    function initializeRealtimeForAccess() {
-        if (!activeDevice) {
-            disconnectRealtime();
-            statusBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span> No Access`;
-            statusBadge.className = "flex items-center gap-1 text-[11px] font-semibold tracking-wide bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400 px-2 py-0.5 rounded-full uppercase border border-gray-200 dark:border-slate-700";
-            return;
-        }
-        refreshStream();
-        connect();
-        if (!statusPollingStarted) {
-            statusPollingStarted = true;
-            pollStatus();
-        }
     }
 
     function normalizeDeviceRecord(device, accessRole = 'owner') {
         return { ...device, access_role: accessRole };
     }
 
-    function getNoClipsMessageElement() {
-        return document.getElementById('no-clips-msg');
+    function getDeviceStateLabel(device) {
+        if (!device) return 'Unpaired';
+        const isClaimed = !!device.is_claimed || !!device.owner_id || !!device.user_id;
+        if (!isClaimed) return 'Ready to pair';
+        return String(device.status || '').toLowerCase() === 'online' ? 'Online' : 'Offline';
     }
 
-    function escapeFilterValue(value) {
-        return String(value || '').replace(/,/g, '\\,');
-    }
-
-    function renderDeviceState() {
-        if (!activeDevice) {
-            deviceStateBadge.className = "text-[11px] font-semibold tracking-wide px-2 py-0.5 rounded-full uppercase border bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/20";
-            deviceStateBadge.textContent = "No Device Paired";
-            deviceStateBadge.classList.remove('hidden');
-            document.querySelector('h1').textContent = 'No Paired Device';
-            deviceAccessCopy.textContent = 'Pair your first doorbell with its pairing code to connect this account.';
-            inviteCopy.textContent = 'Only the device owner can share viewer access by email.';
-            setInviteEnabled(false);
-            setManualRecordEnabled(false);
+    function renderDeviceSelector() {
+        if (!userDevices.length) {
+            deviceSelector.innerHTML = '<option value="">No paired devices</option>';
+            deviceSelector.disabled = true;
             return;
         }
 
+        deviceSelector.disabled = false;
+        deviceSelector.innerHTML = userDevices.map(device => {
+            const label = `${device.name || device.device_id || 'Device'} · ${getDeviceStateLabel(device)}`;
+            const selected = activeDevice && device.device_id === activeDevice.device_id ? 'selected' : '';
+            return `<option value="${device.device_id}" ${selected}>${label}</option>`;
+        }).join('');
+    }
+
+    function renderDeviceList() {
+        const deviceList = document.getElementById('device-list');
+        if (!userDevices.length) {
+            deviceList.innerHTML = '<div class="text-sm text-slate-500 dark:text-slate-400">No claimed or shared devices linked to this account.</div>';
+            return;
+        }
+
+        deviceList.innerHTML = userDevices.map(device => {
+            const activeClass = activeDevice && activeDevice.device_id === device.device_id ? 'border-teal-500/40 bg-teal-50 dark:bg-teal-400/10' : 'border-slate-200 dark:border-slate-700';
+            const isOwner = device.access_role === 'owner';
+            return `
+                <button type="button" data-device-id="${device.device_id}" class="device-list-item w-full text-left rounded-2xl border ${activeClass} px-4 py-3 transition-colors">
+                    <div class="flex items-center justify-between gap-3">
+                        <div class="min-w-0">
+                            <div class="font-semibold text-slate-950 dark:text-white truncate">${device.name || 'Unnamed device'}</div>
+                            <div class="mt-1 text-xs text-slate-500 dark:text-slate-400 truncate">${device.device_id || 'Unknown device id'}</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-xs font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">${isOwner ? 'Owner' : 'Viewer'}</div>
+                            <div class="mt-1 text-sm font-semibold ${String(device.status || '').toLowerCase() === 'online' ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400'}">${getDeviceStateLabel(device)}</div>
+                        </div>
+                    </div>
+                </button>
+            `;
+        }).join('');
+
+        document.querySelectorAll('.device-list-item').forEach(button => {
+            button.addEventListener('click', () => {
+                const nextDevice = userDevices.find(device => device.device_id === button.dataset.deviceId);
+                if (!nextDevice) return;
+                activeDevice = nextDevice;
+                selectedClipId = null;
+                renderAll();
+                fetchDashboardSummary();
+                fetchHistory();
+                initializeRealtimeForAccess();
+            });
+        });
+    }
+
+    function renderActiveDeviceState() {
+        const heroDeviceName = document.getElementById('hero-device-name');
+        const heroCopy = document.getElementById('hero-copy');
+        const workspaceHealth = document.getElementById('workspace-health');
+        const workspaceSubcopy = document.getElementById('workspace-subcopy');
+        const deviceStateName = document.getElementById('device-state-name');
+        const deviceStateCopy = document.getElementById('device-state-copy');
+        const deviceStateBadge = document.getElementById('device-state-badge');
+        const deviceRoleValue = document.getElementById('device-role-value');
+
+        if (!activeDevice) {
+            heroDeviceName.textContent = 'Set up your first device';
+            heroCopy.textContent = 'Use the guided pairing flow to claim a doorbell, confirm connectivity, and start building capture history.';
+            workspaceHealth.textContent = 'No active device';
+            workspaceSubcopy.textContent = 'Pairing required before live view and storage metrics can populate.';
+            deviceStateName.textContent = 'No active device';
+            deviceStateCopy.textContent = 'Pair a doorbell to unlock recording controls, device sharing, and capture history.';
+            deviceStateBadge.textContent = 'Unpaired';
+            deviceRoleValue.textContent = 'Viewer';
+            liveDevicePill.textContent = 'No device selected';
+            deviceRolePill.textContent = 'Viewer';
+            liveEmptyCopy.textContent = 'Select or pair a device to begin the dashboard workspace.';
+            pairingFeedback.textContent = 'No device is paired to this account yet.';
+            inviteCopy.textContent = 'Only the device owner can invite family members to view clips.';
+            setManualRecordEnabled(false);
+            setInviteEnabled(false);
+            return;
+        }
+
+        const isOwner = activeDevice.access_role === 'owner';
         const isClaimed = !!activeDevice.is_claimed || !!activeDevice.owner_id || !!activeDevice.user_id;
         const isOnline = String(activeDevice.status || '').toLowerCase() === 'online';
-        const isOwner = activeDevice.access_role === 'owner';
-        const stateLabel = isClaimed
-            ? (isOnline ? 'Paired • Online' : 'Paired • Offline')
-            : 'Not Paired';
-
-        deviceStateBadge.className = isClaimed
-            ? `text-[11px] font-semibold tracking-wide px-2 py-0.5 rounded-full uppercase border ${isOnline
-                ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/20'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`
-            : "text-[11px] font-semibold tracking-wide px-2 py-0.5 rounded-full uppercase border bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/20";
+        const stateLabel = getDeviceStateLabel(activeDevice);
+        heroDeviceName.textContent = activeDevice.name || 'Active doorbell';
+        heroCopy.textContent = isOnline
+            ? 'The selected device is online. Live preview, recent captures, and device controls are ready.'
+            : 'The selected device is currently offline. You can still review history and manage access while waiting for it to reconnect.';
+        workspaceHealth.textContent = isOnline ? 'Ready for live monitoring' : 'Device currently offline';
+        workspaceSubcopy.textContent = isOwner
+            ? 'Owner controls are available for this device workspace.'
+            : 'Shared viewer access is active for this device workspace.';
+        deviceStateName.textContent = activeDevice.name || 'Unnamed device';
+        deviceStateCopy.textContent = isClaimed
+            ? `${isOwner ? 'Owner' : 'Viewer'} access for device ${activeDevice.device_id || 'unknown'}.`
+            : 'This device record exists but still needs to be claimed by pairing code.';
         deviceStateBadge.textContent = stateLabel;
-        deviceStateBadge.classList.remove('hidden');
-        document.querySelector('h1').textContent = activeDevice.name || 'Front Door';
+        deviceStateBadge.className = `pill ${isOnline ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-600 dark:text-slate-300'}`;
+        deviceRoleValue.textContent = isOwner ? 'Owner' : 'Viewer';
+        liveDevicePill.textContent = activeDevice.name || activeDevice.device_id || 'Active device';
+        deviceRolePill.textContent = isOwner ? 'Owner control' : 'Viewer access';
+        liveEmptyCopy.textContent = isOnline
+            ? 'Live preview is initializing for the selected device.'
+            : 'This device is offline, so live preview is currently unavailable.';
+        pairingFeedback.textContent = isClaimed
+            ? `${activeDevice.name || 'This device'} is already claimed. Pair another device to expand this workspace.`
+            : 'This device can be claimed by entering its pairing code.';
+        inviteCopy.textContent = isOwner
+            ? 'Invite family members by email to give them viewer access to this device.'
+            : 'Only the primary owner can invite additional viewers.';
         setManualRecordEnabled(canManageActiveDevice());
         setInviteEnabled(isClaimed && isOwner);
-        if (!isClaimed) {
-            deviceAccessCopy.textContent = `Device found${activeDevice.name ? `: ${activeDevice.name}` : ''}, but it has not been claimed yet. Pair it with the device pairing code to finish setup.`;
-            inviteCopy.textContent = 'Claim the device before inviting family members.';
-            return;
-        }
-        if (isOwner) {
-            deviceAccessCopy.textContent = isOnline
-                ? 'This account owns the active doorbell and can view clips, trigger recordings, and manage pairing.'
-                : 'This account owns the active doorbell. The device is currently offline, so new clips will appear after it reconnects.';
-            inviteCopy.textContent = 'Invite family members by email to give them viewer access to this doorbell.';
-            return;
-        }
-        deviceAccessCopy.textContent = isOnline
-            ? 'This account has shared access to the active doorbell through device membership.'
-            : 'This account has shared access to the active doorbell, but the device is currently offline.';
-        inviteCopy.textContent = 'Only the primary device owner can invite additional family members.';
     }
 
-    function updateEmptyState(hasClips) {
-        if (hasClips) return;
-        const noClipsMsg = getNoClipsMessageElement();
-        if (!noClipsMsg) return;
-        if (!activeDevice) {
-            noClipsMsg.textContent = "No paired device found for this account. Pair a doorbell to start seeing clips here.";
+    function renderSummary(summary = null) {
+        const safeSummary = summary || {
+            device_count: userDevices.length,
+            online_devices: userDevices.filter(device => String(device.status || '').toLowerCase() === 'online').length,
+            clip_count: allEvents.length,
+            clips_today: 0,
+            last_event: null,
+            total_storage_bytes: 0,
+            retention_days: '--'
+        };
+
+        document.getElementById('metric-devices').textContent = safeSummary.device_count;
+        document.getElementById('metric-online').textContent = safeSummary.online_devices;
+        document.getElementById('metric-today').textContent = safeSummary.clips_today;
+        document.getElementById('metric-storage').textContent = formatBytes(safeSummary.total_storage_bytes);
+        document.getElementById('metric-storage-copy').textContent = `${safeSummary.clip_count} clips in current scope`;
+        document.getElementById('retention-value').textContent = `${safeSummary.retention_days} days`;
+        document.getElementById('retention-copy').textContent = 'Automatic server cleanup policy';
+        document.getElementById('storage-footprint').textContent = formatBytes(safeSummary.total_storage_bytes);
+        document.getElementById('storage-retention').textContent = `${safeSummary.retention_days} days`;
+        document.getElementById('storage-policy-copy').textContent = activeDevice
+            ? `Storage details are scoped to ${activeDevice.name || 'the selected device'} and the backend retention window.`
+            : 'Storage details will scope to the selected device after pairing.';
+        document.getElementById('storage-caption').textContent = safeSummary.clip_count
+            ? `${safeSummary.clip_count} retained clip${safeSummary.clip_count === 1 ? '' : 's'} in the current workspace.`
+            : 'No retained clips yet in the current workspace.';
+        document.getElementById('workspace-subcopy').textContent = safeSummary.last_event
+            ? `Last activity ${formatRelativeTime(safeSummary.last_event)}.`
+            : 'No clips have been recorded for the current workspace yet.';
+        document.getElementById('live-updated-pill').textContent = safeSummary.last_event ? `Last event ${formatRelativeTime(safeSummary.last_event)}` : 'No recent event';
+        document.getElementById('device-last-event').textContent = safeSummary.last_event ? formatRelativeTime(safeSummary.last_event) : '--';
+        document.getElementById('capture-count-pill').textContent = `${safeSummary.clip_count} clip${safeSummary.clip_count === 1 ? '' : 's'}`;
+        const storagePercent = Math.max(6, Math.min(100, safeSummary.total_storage_bytes / (200 * 1024 * 1024) * 100));
+        document.getElementById('storage-bar').style.width = safeSummary.total_storage_bytes ? `${storagePercent}%` : '0%';
+    }
+
+    function renderClips() {
+        const listEmpty = `
+            <div id="clip-list-empty" class="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 px-5 py-10 text-center text-sm text-slate-500 dark:text-slate-400">
+                ${activeDevice
+                    ? 'No captures match the selected device yet. Record a clip or wait for the next event.'
+                    : 'Capture history will populate here after pairing.'}
+            </div>
+        `;
+
+        if (!allEvents.length) {
+            clipList.innerHTML = listEmpty;
+            featuredClipShell.classList.add('hidden');
+            featuredClipEmpty.classList.remove('hidden');
+            featuredVideo.removeAttribute('src');
+            featuredVideo.load();
+            document.getElementById('featured-empty-copy').textContent = activeDevice
+                ? 'Once this device records a motion or manual event, clips will appear here for review.'
+                : 'Pair a device to unlock the capture viewer.';
             return;
         }
-        if (!activeDevice.is_claimed && !activeDevice.owner_id && !activeDevice.user_id) {
-            noClipsMsg.textContent = "This device is not paired to your account yet. Complete pairing to see clips here.";
-            return;
+
+        const selectedEvent = allEvents.find(event => String(event.id) === String(selectedClipId)) || allEvents[0];
+        selectedClipId = selectedEvent.id;
+        renderFeaturedClip(selectedEvent);
+
+        clipList.innerHTML = allEvents.map(event => {
+            const meta = eventMeta(event.event_type);
+            const active = String(event.id) === String(selectedClipId) ? 'active' : '';
+            return `
+                <button type="button" class="clip-card ${active} w-full text-left rounded-2xl border border-slate-200 dark:border-slate-700 p-3 transition-all" data-event-id="${event.id}">
+                    <div class="flex gap-3">
+                        <div class="w-24 h-16 rounded-xl overflow-hidden bg-slate-950 shrink-0 flex items-center justify-center text-slate-500">
+                            <i class="fa-solid ${meta.icon}"></i>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center justify-between gap-2">
+                                <div class="text-sm font-bold text-slate-950 dark:text-white truncate">${meta.label} Capture</div>
+                                <div class="text-xs text-slate-500 dark:text-slate-400">${formatRelativeTime(event.created_at)}</div>
+                            </div>
+                            <div class="mt-1 text-sm text-slate-500 dark:text-slate-400 truncate">${activeDevice?.name || event.device_id || 'Device'}</div>
+                            <div class="mt-2 flex items-center justify-between gap-2">
+                                <div class="text-xs ${meta.classes} font-bold uppercase tracking-[0.18em]">${meta.label}</div>
+                                <div class="text-xs text-slate-500 dark:text-slate-400">${formatDateTime(event.created_at)}</div>
+                            </div>
+                        </div>
+                    </div>
+                </button>
+            `;
+        }).join('');
+
+        document.querySelectorAll('.clip-card').forEach(button => {
+            button.addEventListener('click', () => {
+                selectedClipId = button.dataset.eventId;
+                renderClips();
+            });
+        });
+    }
+
+    function renderFeaturedClip(event) {
+        const meta = eventMeta(event.event_type);
+        featuredClipShell.classList.remove('hidden');
+        featuredClipEmpty.classList.add('hidden');
+        featuredVideo.src = event.video_url;
+        featuredBadge.className = `pill w-fit ${meta.classes}`;
+        featuredBadge.innerHTML = `<i class="fa-solid ${meta.icon}"></i><span>${meta.label}</span>`;
+        featuredTitle.textContent = `${meta.label} capture on ${activeDevice?.name || 'selected device'}`;
+        featuredSubtitle.textContent = `${formatDateTime(event.created_at)}${event.file_size ? ` · ${formatBytes(event.file_size)}` : ''}`;
+        featuredDownload.href = event.video_url;
+        featuredDeleteBtn.classList.toggle('hidden', !canManageActiveDevice());
+        featuredDeleteBtn.onclick = () => deleteEvent(event.id);
+    }
+
+    function renderAll() {
+        renderDeviceSelector();
+        renderDeviceList();
+        renderActiveDeviceState();
+        renderClips();
+    }
+
+    function addLog(title, subtitle, iconClass, toneClasses = 'text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800') {
+        const emptyNode = activityFeed.querySelector('.border-dashed');
+        if (emptyNode) emptyNode.remove();
+
+        const item = document.createElement('div');
+        item.className = 'surface rounded-2xl p-4 border border-slate-200/70 dark:border-slate-800/80';
+        item.innerHTML = `
+            <div class="flex items-start gap-3">
+                <div class="w-10 h-10 rounded-2xl ${toneClasses} flex items-center justify-center shrink-0">
+                    <i class="${iconClass}"></i>
+                </div>
+                <div class="min-w-0 flex-1">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="font-semibold text-slate-950 dark:text-white">${title}</div>
+                        <div class="text-xs text-slate-500 dark:text-slate-400 shrink-0">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                    </div>
+                    <div class="mt-1 text-sm text-slate-500 dark:text-slate-400">${subtitle}</div>
+                </div>
+            </div>
+        `;
+        activityFeed.prepend(item);
+        activityCount += 1;
+        document.getElementById('activity-count-pill').textContent = `${activityCount} item${activityCount === 1 ? '' : 's'}`;
+        if (activityFeed.children.length > 18) {
+            activityFeed.removeChild(activityFeed.lastChild);
+            activityCount = Math.max(0, activityCount - 1);
+            document.getElementById('activity-count-pill').textContent = `${activityCount} item${activityCount === 1 ? '' : 's'}`;
         }
-        if (String(activeDevice.status || '').toLowerCase() !== 'online') {
-            noClipsMsg.textContent = "No clips yet. Your paired device is currently offline, so new events will not appear until it reconnects.";
-            return;
-        }
-        noClipsMsg.textContent = activeDevice.access_role === 'owner'
-            ? "No clips yet for this device. It is paired and online, but no events have been recorded yet."
-            : "No shared clips are visible yet for this device. It is paired and online, but no accessible events have been recorded yet.";
     }
 
     async function loadDeviceState() {
         if (!currentUserId) return;
         try {
             const accessToken = await getBrowserAccessToken();
-            if (!accessToken) {
-                throw new Error('Missing session token');
-            }
+            if (!accessToken) throw new Error('Missing session token');
 
             const response = await fetch(`${apiBase}/api/device-access`, {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`
-                }
+                headers: { Authorization: `Bearer ${accessToken}` }
             });
             const result = await response.json().catch(() => ({}));
-            if (!response.ok) {
-                throw new Error(result.detail || result.error || 'Unable to load device access.');
-            }
+            if (!response.ok) throw new Error(result.detail || result.error || 'Unable to load device access.');
 
             userDevices = (result.devices || []).map(device => normalizeDeviceRecord(device, device.access_role || 'viewer'));
-            userMemberships = userDevices.map(device => ({ device_id: device.device_id, role: device.access_role || 'viewer' }));
             accessibleDeviceIds = userDevices.map(device => device.device_id).filter(Boolean);
-            activeDevice = userDevices[0] || null;
-        } catch (err) {
-            console.error('Failed to load device state:', err);
+            activeDevice = activeDevice && userDevices.find(device => device.device_id === activeDevice.device_id)
+                ? userDevices.find(device => device.device_id === activeDevice.device_id)
+                : (userDevices[0] || null);
+        } catch (error) {
+            console.error('Failed to load device state:', error);
             userDevices = [];
-            userMemberships = [];
             accessibleDeviceIds = [];
             activeDevice = null;
         }
-        renderDeviceState();
-        updateEmptyState(false);
+        renderAll();
     }
 
-    // --- STATUS BAR ---
-    async function pollStatus() {
+    async function fetchDashboardSummary() {
         try {
-            const res = await fetch(`${apiBase}/api/status`);
-            if (!res.ok) return;
-            const d = await res.json();
-            document.getElementById('stat-uptime').textContent = `Uptime: ${d.uptime}`;
-            document.getElementById('stat-clips').textContent = `Clips today: ${d.clips_today}`;
-            document.getElementById('stat-total').textContent = `Total clips: ${d.total_clips}`;
-            if (d.last_event) {
-                const ago = Math.round((Date.now() - new Date(d.last_event).getTime()) / 60000);
-                document.getElementById('stat-last').textContent = ago < 60
-                    ? `Last event: ${ago}m ago`
-                    : `Last event: ${Math.round(ago/60)}h ago`;
-            }
-        } catch (e) {}
-        statusPollTimer = setTimeout(pollStatus, 30000);
-    }
-
-    // --- BADGE HELPER ---
-    function eventBadge(eventType) {
-        const map = {
-            motion: { cls: 'badge-motion', icon: 'fa-person-walking', label: 'Motion' },
-            manual: { cls: 'badge-manual', icon: 'fa-hand-pointer',   label: 'Manual' },
-            ring:   { cls: 'badge-ring',   icon: 'fa-bell',           label: 'Ring'   },
-        };
-        const e = map[eventType] || map.motion;
-        return `<span class="${e.cls} flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full">
-            <i class="fa-solid ${e.icon} text-[9px]"></i>${e.label}
-        </span>`;
-    }
-
-    // --- GALLERY: grouped by day ---
-    const dayGroups = {}; // { 'Mar 21, 2026': domElement }
-
-    function getDayLabel(dateStr) {
-        const d = new Date(dateStr);
-        const today = new Date();
-        const yesterday = new Date(); yesterday.setDate(today.getDate() - 1);
-        if (d.toDateString() === today.toDateString()) return 'Today';
-        if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
-        return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
-    }
-
-    function getOrCreateDayGroup(dayLabel) {
-        if (dayGroups[dayLabel]) return dayGroups[dayLabel];
-
-        // Remove empty state
-        const noClipsMsg = getNoClipsMessageElement();
-        if (noClipsMsg) noClipsMsg.style.display = 'none';
-
-        // Day header
-        const header = document.createElement('div');
-        header.className = 'day-header flex items-center gap-3 mt-2';
-        header.innerHTML = `
-            <span class="text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-widest whitespace-nowrap">${dayLabel}</span>
-            <div class="flex-1 h-px bg-gray-200 dark:bg-slate-700"></div>
-        `;
-
-        // Grid container for this day
-        const grid = document.createElement('div');
-        grid.className = 'day-header';
-        grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:0.75rem;';
-
-        // Prepend new days at top
-        const firstChild = gallery.firstChild;
-        gallery.insertBefore(grid, firstChild);
-        gallery.insertBefore(header, grid);
-
-        dayGroups[dayLabel] = grid;
-        return grid;
-    }
-
-    function addVideoToGallery(url, timestamp, eventType = "motion", eventId = null, createdAt = null) {
-        // Parse display time
-        let displayTime = timestamp;
-        let dayLabel = 'Today';
-
-        if (createdAt) {
-            const d = new Date(createdAt);
-            dayLabel = getDayLabel(createdAt);
-            displayTime = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        } else if (timestamp && timestamp.includes('_') && timestamp.length >= 15) {
-            const parts = timestamp.split('_');
-            const d = parts[0], t = parts[1];
-            if (d.length === 8 && t.length === 6) {
-                displayTime = `${t.substring(0,2)}:${t.substring(2,4)}`;
-            }
+            const accessToken = await getBrowserAccessToken();
+            if (!accessToken) throw new Error('Missing session token');
+            const query = activeDevice?.device_id ? `?device_id=${encodeURIComponent(activeDevice.device_id)}` : '';
+            const response = await fetch(`${apiBase}/api/dashboard-summary${query}`, {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(result.detail || result.error || 'Unable to load dashboard summary.');
+            renderSummary(result);
+        } catch (error) {
+            console.error('Failed to load summary:', error);
+            renderSummary();
         }
-
-        const actionBtnHtml = eventId && canManageActiveDevice()
-            ? `<button onclick="deleteEvent(${eventId}, this)" class="text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 w-8 h-8 flex items-center justify-center rounded-lg transition-all flex-shrink-0" title="Delete Clip"><i class="fa-solid fa-trash-can text-xs"></i></button>`
-            : `<button disabled class="text-gray-300 dark:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg cursor-default flex-shrink-0"><i class="fa-solid fa-arrows-rotate text-xs"></i></button>`;
-
-        const card = document.createElement('div');
-        card.className = "flex-none bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm flex flex-col group transition-colors duration-200";
-
-        card.innerHTML = `
-            <div class="relative w-full aspect-video bg-black overflow-hidden border-b border-gray-200 dark:border-slate-700">
-                <video class="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" controls preload="metadata">
-                    <source src="${url}" type="video/mp4">
-                </video>
-            </div>
-            <div class="px-3 py-2 flex justify-between items-center gap-2 bg-gray-50 dark:bg-slate-800">
-                <div class="flex flex-col gap-1 min-w-0">
-                    ${eventBadge(eventType)}
-                    <span class="text-[10px] text-gray-500 dark:text-slate-400 font-medium">${displayTime}</span>
-                </div>
-                ${actionBtnHtml}
-            </div>
-        `;
-
-        const dayGrid = getOrCreateDayGroup(dayLabel);
-        dayGrid.prepend(card);
     }
 
-    // --- FETCH HISTORY ---
     async function fetchHistory() {
         try {
-            if (!currentUserId) return;
-
-            gallery.innerHTML = `
-                <div class="day-header">
-                    <div id="no-clips-msg" class="text-gray-400 dark:text-slate-500 text-sm py-8 text-center bg-gray-50 dark:bg-slate-800/30 rounded-xl border border-dashed border-gray-200 dark:border-slate-700">
-                        No video clips captured yet.
-                    </div>
-                </div>
-            `;
-            Object.keys(dayGroups).forEach(key => delete dayGroups[key]);
-            const refreshedNoClipsMsg = document.getElementById('no-clips-msg');
-
-            if (accessibleDeviceIds.length === 0) {
-                if (refreshedNoClipsMsg) {
-                    refreshedNoClipsMsg.textContent = "No paired or shared device is linked to this account yet.";
-                }
-                updateEmptyState(false);
-                return;
-            }
-
-            const deviceFilter = accessibleDeviceIds.map(deviceId => `device_id.eq.${escapeFilterValue(deviceId)}`).join(',');
-            const { data, error } = await supabaseClient
-                .from('events')
-                .select('*')
-                .or(deviceFilter)
-                .order('created_at', { ascending: false })
-                .limit(20);
-
-            if (error) throw error;
-            if (data && data.length > 0) {
-                // Add oldest first so prepend puts newest at top within each day
-                [...data].reverse().forEach(event => {
-                    addVideoToGallery(event.video_url, event.created_at, event.event_type, event.id, event.created_at);
-                });
-                updateEmptyState(true);
-            } else {
-                updateEmptyState(false);
-            }
-        } catch (err) {
-            console.error("Failed to load history:", err);
-            updateEmptyState(false);
+            const accessToken = await getBrowserAccessToken();
+            if (!accessToken) throw new Error('Missing session token');
+            const query = activeDevice?.device_id ? `?device_id=${encodeURIComponent(activeDevice.device_id)}` : '';
+            const response = await fetch(`${apiBase}/api/events${query}`, {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(result.detail || result.error || 'Unable to load clip history.');
+            allEvents = result.events || [];
+            renderClips();
+        } catch (error) {
+            console.error('Failed to load history:', error);
+            allEvents = [];
+            renderClips();
         }
     }
 
-    // --- LOG ---
-    function addLog(title, subtitle, iconClass, lightColorClass, darkColorClass) {
-        const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const div = document.createElement('div');
-        div.className = "bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 p-3 rounded-xl shadow-sm flex items-start gap-3 transition-colors duration-200";
-        div.innerHTML = `
-            <div class="mt-0.5 w-8 h-8 rounded-full flex items-center justify-center ${lightColorClass} dark:${darkColorClass} shrink-0">
-                <i class="${iconClass} text-sm"></i>
-            </div>
-            <div class="flex-1 min-w-0">
-                <p class="text-sm font-semibold text-gray-900 dark:text-slate-200">${title}</p>
-                <p class="text-xs text-gray-500 dark:text-slate-400 truncate mt-0.5">${subtitle}</p>
-            </div>
-            <span class="text-[10px] font-medium text-gray-400 dark:text-slate-500 shrink-0 mt-1">${time}</span>
-        `;
-        logContainer.prepend(div);
-        if (logContainer.children.length > 15) logContainer.removeChild(logContainer.lastChild);
+    function initializeRealtimeForAccess() {
+        disconnectRealtime();
+        refreshStream();
+        if (!activeDevice) {
+            setConnectionState('No active device', 'bg-slate-400', 'text-slate-600 dark:text-slate-300');
+            return;
+        }
+        connect();
     }
 
-    // --- WEBSOCKET ---
     function connect() {
-        if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
-        if (globalSocket && globalSocket.readyState !== WebSocket.CLOSED) {
-            globalSocket.onclose = null;
-            globalSocket.close();
+        if (reconnectTimer) {
+            clearTimeout(reconnectTimer);
+            reconnectTimer = null;
         }
         globalSocket = new WebSocket(wsUrl);
 
         globalSocket.onopen = () => {
-            statusBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_5px_#22c55e]"></span> Live`;
-            statusBadge.className = "flex items-center gap-1 text-[11px] font-semibold tracking-wide bg-green-50 dark:bg-emerald-500/10 text-green-700 dark:text-emerald-400 px-2 py-0.5 rounded-full uppercase border border-green-200 dark:border-emerald-500/20";
-            addLog("System Online", "Connection to doorbell established.", "fa-solid fa-check", "bg-green-100 text-green-600", "bg-emerald-500/20 text-emerald-400");
+            setConnectionState('Live connection', 'bg-emerald-500', 'text-emerald-700 dark:text-emerald-300');
+            document.getElementById('live-status-pill').textContent = 'Connected';
+            addLog('Realtime connected', `Dashboard is receiving events for ${activeDevice?.name || 'the selected device'}.`, 'fa-solid fa-check', 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/10');
         };
 
         globalSocket.onmessage = (event) => {
             const data = JSON.parse(event.data);
-            if (data.event === "recording_started") {
-                const type = data.type === "sensor" ? "Motion Detected" : "Manual Recording";
-                addLog(type, "Camera is saving a video clip.", "fa-solid fa-person-walking", "bg-orange-100 text-orange-600", "bg-orange-500/20 text-orange-400");
-                recordingOverlay.classList.remove('hidden');
+            if (data.device_id && activeDevice?.device_id && data.device_id !== activeDevice.device_id) {
+                return;
             }
-            if (data.event === "motion" || data.event === "manual_record_complete") {
+
+            if (data.event === 'recording_started') {
+                recordingOverlay.classList.remove('hidden');
+                recordingOverlay.classList.add('flex');
+                addLog(
+                    data.type === 'sensor' ? 'Motion recording started' : 'Manual recording started',
+                    'The active device is capturing and saving a new clip.',
+                    'fa-solid fa-circle-dot',
+                    'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10'
+                );
+                return;
+            }
+
+            if (data.event === 'motion' || data.event === 'manual_record_complete') {
                 recordingOverlay.classList.add('hidden');
+                recordingOverlay.classList.remove('flex');
                 if (data.video_url) {
-                    addLog("Clip Uploaded", "Video securely saved to cloud.", "fa-solid fa-cloud-arrow-up", "bg-blue-100 text-blue-600", "bg-blue-500/20 text-blue-400");
-                    addVideoToGallery(data.video_url, data.timestamp, data.event === "motion" ? "motion" : "manual", null, new Date().toISOString());
+                    addLog(
+                        data.event === 'motion' ? 'Motion clip uploaded' : 'Manual clip uploaded',
+                        'The new clip is now available in the capture viewer.',
+                        'fa-solid fa-cloud-arrow-up',
+                        'text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-500/10'
+                    );
+                    fetchDashboardSummary();
+                    fetchHistory();
                 }
             }
         };
 
         globalSocket.onclose = () => {
-            statusBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse"></span> Reconnecting`;
-            statusBadge.className = "flex items-center gap-1 text-[11px] font-semibold tracking-wide bg-yellow-50 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 px-2 py-0.5 rounded-full uppercase border border-yellow-200 dark:border-yellow-500/20";
+            setConnectionState('Reconnecting', 'bg-amber-400', 'text-amber-700 dark:text-amber-300');
+            document.getElementById('live-status-pill').textContent = 'Reconnecting';
             reconnectTimer = setTimeout(connect, 2000);
         };
     }
 
     function triggerManualRecord() {
         if (!activeDevice) {
-            addLog("No Paired Device", "Pair a device before starting manual recording.", "fa-solid fa-link-slash", "bg-amber-100 text-amber-700", "bg-amber-500/20 text-amber-300");
+            addLog('No active device', 'Pair or select a device before starting a manual recording.', 'fa-solid fa-link-slash', 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10');
             return;
         }
         if (!canManageActiveDevice()) {
-            addLog("Owner Action Only", "Only the primary device owner can start manual recording.", "fa-solid fa-user-shield", "bg-amber-100 text-amber-700", "bg-amber-500/20 text-amber-300");
+            addLog('Owner action only', 'Only the primary device owner can start a manual recording.', 'fa-solid fa-user-shield', 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10');
             return;
         }
-        if (!activeDevice.is_claimed && !activeDevice.owner_id && !activeDevice.user_id) {
-            addLog("Pairing Required", "Claim this device with its pairing code before starting manual recording.", "fa-solid fa-link", "bg-amber-100 text-amber-700", "bg-amber-500/20 text-amber-300");
+        if (!globalSocket || globalSocket.readyState !== WebSocket.OPEN) {
+            addLog('Connection unavailable', 'The realtime channel is not ready. Wait for reconnection and try again.', 'fa-solid fa-triangle-exclamation', 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-500/10');
             return;
         }
-        if (globalSocket && globalSocket.readyState === WebSocket.OPEN) {
-            globalSocket.send(JSON.stringify({ action: "manual_record" }));
-        }
+        globalSocket.send(JSON.stringify({ action: 'manual_record', device_id: activeDevice.device_id }));
     }
 
     pairingForm.addEventListener('submit', async (event) => {
         event.preventDefault();
         const pairingCode = pairingCodeInput.value.trim();
-        if (!pairingCode || !currentUserId) {
-            return;
-        }
+        if (!pairingCode || !currentUserId) return;
 
         pairingSubmitBtn.disabled = true;
         pairingSubmitBtn.textContent = 'Pairing...';
 
         try {
-            const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
-            if (sessionError) throw sessionError;
-
-            const accessToken = sessionData?.session?.access_token;
-            if (!accessToken) {
-                throw new Error('Your session expired. Sign in again to pair this device.');
-            }
+            const accessToken = await getBrowserAccessToken();
+            if (!accessToken) throw new Error('Your session expired. Sign in again to pair this device.');
 
             const response = await fetch(`${apiBase}/api/pair-device`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${accessToken}`
+                    Authorization: `Bearer ${accessToken}`
                 },
                 body: JSON.stringify({ pairing_code: pairingCode })
             });
 
             const result = await response.json().catch(() => ({}));
-            if (!response.ok) {
-                throw new Error(result.detail || result.error || 'Unable to pair device.');
-            }
-
-            const device = result.device || {};
-            const claimedDevice = normalizeDeviceRecord({
-                ...device,
-                owner_id: device.owner_id || currentUserId,
-                user_id: device.user_id || currentUserId,
-                is_claimed: true
-            }, 'owner');
-            userDevices = [claimedDevice];
-            userMemberships = [{ device_id: claimedDevice.device_id, role: 'owner' }];
-            accessibleDeviceIds = claimedDevice.device_id ? [claimedDevice.device_id] : [];
-            activeDevice = claimedDevice;
-            renderDeviceState();
-            updateEmptyState(false);
-            initializeRealtimeForAccess();
+            if (!response.ok) throw new Error(result.detail || result.error || 'Unable to pair device.');
 
             pairingCodeInput.value = '';
+            await loadDeviceState();
+            await fetchDashboardSummary();
             await fetchHistory();
-            addLog("Device Paired", `${device.name || 'Doorbell'} is now linked to this account.`, "fa-solid fa-link", "bg-emerald-100 text-emerald-700", "bg-emerald-500/20 text-emerald-300");
-        } catch (err) {
-            console.error('Pairing failed:', err);
-            addLog("Pairing Failed", err?.message || "Unable to pair device.", "fa-solid fa-triangle-exclamation", "bg-red-100 text-red-600", "bg-red-500/20 text-red-400");
+            initializeRealtimeForAccess();
+            addLog('Device paired', `${result.device?.name || 'Doorbell'} is now linked to this account.`, 'fa-solid fa-link', 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/10');
+        } catch (error) {
+            console.error('Pairing failed:', error);
+            addLog('Pairing failed', error?.message || 'Unable to pair device.', 'fa-solid fa-triangle-exclamation', 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-500/10');
         } finally {
             pairingSubmitBtn.disabled = false;
             pairingSubmitBtn.textContent = 'Pair Device';
@@ -749,12 +1198,9 @@
     inviteFamilyForm.addEventListener('submit', async (event) => {
         event.preventDefault();
         const inviteEmail = inviteEmailInput.value.trim().toLowerCase();
-
-        if (!inviteEmail) {
-            return;
-        }
+        if (!inviteEmail) return;
         if (!activeDevice || activeDevice.access_role !== 'owner') {
-            addLog("Invite Not Allowed", "Only the primary device owner can add family members.", "fa-solid fa-user-shield", "bg-amber-100 text-amber-700", "bg-amber-500/20 text-amber-300");
+            addLog('Invite unavailable', 'Only the primary device owner can add family members.', 'fa-solid fa-user-shield', 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10');
             return;
         }
 
@@ -767,16 +1213,11 @@
                 .select('id, email')
                 .ilike('email', inviteEmail)
                 .limit(1);
-
             if (profileError) throw profileError;
 
             const invitedProfile = (profileRows || [])[0];
-            if (!invitedProfile?.id) {
-                throw new Error('No account was found for that email address.');
-            }
-            if (invitedProfile.id === currentUserId) {
-                throw new Error('The device owner already has access.');
-            }
+            if (!invitedProfile?.id) throw new Error('No account was found for that email address.');
+            if (invitedProfile.id === currentUserId) throw new Error('The device owner already has access.');
 
             const { data: existingMembers, error: existingError } = await supabaseClient
                 .from('device_members')
@@ -784,12 +1225,11 @@
                 .eq('device_id', activeDevice.device_id)
                 .eq('user_id', invitedProfile.id)
                 .limit(1);
-
             if (existingError) throw existingError;
 
             if (existingMembers && existingMembers.length > 0) {
-                addLog("Family Access Exists", `${inviteEmail} already has access to this device.`, "fa-solid fa-user-check", "bg-slate-200 text-slate-700", "bg-slate-700/60 text-slate-200");
                 inviteEmailInput.value = '';
+                addLog('Viewer already added', `${inviteEmail} already has access to this device.`, 'fa-solid fa-user-check', 'text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800');
                 return;
             }
 
@@ -800,86 +1240,86 @@
                     user_id: invitedProfile.id,
                     role: 'viewer'
                 });
-
             if (insertError) throw insertError;
 
             inviteEmailInput.value = '';
-            addLog("Family Member Added", `${inviteEmail} can now view clips for ${activeDevice.name || 'this doorbell'}.`, "fa-solid fa-user-plus", "bg-blue-100 text-blue-600", "bg-blue-500/20 text-blue-400");
-        } catch (err) {
-            console.error('Invite failed:', err);
-            addLog("Invite Failed", err?.message || "Unable to add family member.", "fa-solid fa-triangle-exclamation", "bg-red-100 text-red-600", "bg-red-500/20 text-red-400");
+            addLog('Viewer added', `${inviteEmail} can now review captures for ${activeDevice.name || 'this device'}.`, 'fa-solid fa-user-plus', 'text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-500/10');
+        } catch (error) {
+            console.error('Invite failed:', error);
+            addLog('Invite failed', error?.message || 'Unable to add family member.', 'fa-solid fa-triangle-exclamation', 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-500/10');
         } finally {
             inviteSubmitBtn.disabled = activeDevice?.access_role !== 'owner';
             inviteSubmitBtn.textContent = 'Add Viewer';
         }
     });
 
-    // --- DELETE (two-step, no confirm dialog) ---
-    function deleteEvent(eventId, btnEl = null) {
-        if (!btnEl) return;
-        if (btnEl.dataset.confirming !== "true") {
-            btnEl.dataset.confirming = "true";
-            btnEl.innerHTML = '<i class="fa-solid fa-check text-red-500 text-xs"></i>';
-            btnEl.title = "Click again to confirm";
-            btnEl.classList.add("bg-red-50", "dark:bg-red-500/10");
-            setTimeout(() => {
-                if (btnEl.dataset.confirming === "true") {
-                    btnEl.dataset.confirming = "false";
-                    btnEl.innerHTML = '<i class="fa-solid fa-trash-can text-xs"></i>';
-                    btnEl.title = "Delete Clip";
-                    btnEl.classList.remove("bg-red-50", "dark:bg-red-500/10");
-                }
-            }, 3000);
-            return;
-        }
-        btnEl.dataset.confirming = "false";
-        btnEl.disabled = true;
-        btnEl.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin text-red-400 text-xs"></i>';
+    async function deleteEvent(eventId) {
+        if (!canManageActiveDevice()) return;
+        try {
+            const accessToken = await getBrowserAccessToken();
+            if (!accessToken) throw new Error('Your session expired. Sign in again to delete clips.');
 
-        fetch(`${apiBase}/api/events/${eventId}`, { method: "DELETE" })
-            .then(async response => {
-                if (!response.ok) {
-                    btnEl.disabled = false;
-                    btnEl.innerHTML = '<i class="fa-solid fa-trash-can text-xs"></i>';
-                    addLog("Delete Failed", `Server error: ${response.status}`, "fa-solid fa-triangle-exclamation", "bg-red-100 text-red-600", "bg-red-500/20 text-red-400");
-                    return;
-                }
-                const card = btnEl.closest(".bg-white, .dark\\:bg-slate-900");
-                if (card) {
-                    card.style.transition = "opacity 0.2s, transform 0.2s";
-                    card.style.opacity = "0";
-                    card.style.transform = "scale(0.95)";
-                    setTimeout(() => {
-                        card.remove();
-                        // If day grid is empty, remove header too
-                        document.querySelectorAll('#recordings-gallery .day-header').forEach(el => {
-                            if (el.tagName !== 'DIV' || el.children.length === 0) return;
-                            const grid = el;
-                            if (grid.style.display === 'grid' && grid.children.length === 0) {
-                                const prev = grid.previousElementSibling;
-                                if (prev) prev.remove();
-                                grid.remove();
-                            }
-                        });
-                        if (gallery.querySelectorAll('video').length === 0) {
-                            const noClipsMsg = getNoClipsMessageElement();
-                            if (noClipsMsg) noClipsMsg.style.display = '';
-                        }
-                    }, 200);
-                }
-                addLog("Clip Deleted", `Event #${eventId} removed from cloud.`, "fa-solid fa-trash-can", "bg-red-100 text-red-600", "bg-red-500/20 text-red-400");
-            })
-            .catch(err => {
-                btnEl.disabled = false;
-                btnEl.innerHTML = '<i class="fa-solid fa-trash-can text-xs"></i>';
-                addLog("Delete Failed", `Network error: ${err.message}`, "fa-solid fa-triangle-exclamation", "bg-red-100 text-red-600", "bg-red-500/20 text-red-400");
+            const response = await fetch(`${apiBase}/api/events/${eventId}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${accessToken}` }
             });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(payload.detail || payload.error || `Server error: ${response.status}`);
+
+            addLog('Clip deleted', `Event #${eventId} was removed from cloud storage.`, 'fa-solid fa-trash-can', 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-500/10');
+            if (String(selectedClipId) === String(eventId)) selectedClipId = null;
+            await fetchDashboardSummary();
+            await fetchHistory();
+        } catch (error) {
+            addLog('Delete failed', error?.message || 'Unable to delete this clip.', 'fa-solid fa-triangle-exclamation', 'text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-500/10');
+        }
     }
 
-    // --- CLOCK ---
-    setInterval(() => {
-        document.getElementById('timestamp-ui').innerText = new Date().toLocaleTimeString();
-    }, 1000);
+    async function logOut() {
+        disconnectRealtime();
+        userDevices = [];
+        accessibleDeviceIds = [];
+        activeDevice = null;
+        allEvents = [];
+        await supabaseClient.auth.signOut();
+        window.location.replace('/login.html');
+    }
+
+    deviceSelector.addEventListener('change', () => {
+        const nextDevice = userDevices.find(device => device.device_id === deviceSelector.value);
+        activeDevice = nextDevice || null;
+        selectedClipId = null;
+        renderAll();
+        fetchDashboardSummary();
+        fetchHistory();
+        initializeRealtimeForAccess();
+    });
+
+    refreshGalleryBtn.addEventListener('click', async () => {
+        refreshGalleryBtn.disabled = true;
+        refreshGalleryBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Refreshing';
+        await fetchDashboardSummary();
+        await fetchHistory();
+        refreshGalleryBtn.disabled = false;
+        refreshGalleryBtn.innerHTML = '<i class="fa-solid fa-rotate-right"></i> Refresh';
+    });
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        try {
+            const { data, error } = await supabaseClient.auth.getSession();
+            if (error || !data.session) {
+                window.location.replace('/login.html');
+                return;
+            }
+            currentUserId = data.session.user?.id || null;
+            await loadDeviceState();
+            await fetchDashboardSummary();
+            await fetchHistory();
+            initializeRealtimeForAccess();
+        } catch (error) {
+            window.location.replace('/login.html');
+        }
+    });
 </script>
 </body>
 </html>

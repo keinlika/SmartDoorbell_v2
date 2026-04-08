@@ -26,3 +26,6 @@ Thumbs.db
 *.jpeg
 *.png
 
+.codex
+*.env_backup*
+.env

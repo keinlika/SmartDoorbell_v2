@@ -21,6 +21,7 @@ import cv2
 import threading
 import time
 import shutil
+import shlex
 from flask import Flask, Response
 
 
@@ -29,6 +30,51 @@ def get_env_int(name: str, default: int) -> int:
         return int(os.environ.get(name, default))
     except (TypeError, ValueError):
         return default
+
+
+def get_env_float(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def get_env_bool(name: str, default: bool) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def load_env_files():
+    env_candidates = (
+        os.path.join(FIRMWARE_DIR, ".env"),
+        os.path.join(os.path.dirname(FIRMWARE_DIR), ".env"),
+        os.path.expanduser("~/.env"),
+    )
+
+    for env_path in env_candidates:
+        if not os.path.isfile(env_path):
+            continue
+
+        try:
+            with open(env_path, "r", encoding="utf-8") as env_file:
+                for raw_line in env_file:
+                    line = raw_line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+
+                    key, value = line.split("=", 1)
+                    key = key.strip()
+                    value = value.strip().strip("'").strip('"')
+
+                    if key.startswith("export "):
+                        key = key[7:].strip()
+
+                    if key and key not in os.environ:
+                        os.environ[key] = value
+        except Exception as exc:
+            print(f"   [Config] Failed to load {env_path}: {exc}")
 
 
 def get_serial() -> str:
@@ -48,6 +94,7 @@ def get_serial() -> str:
 # CONFIGURATION
 # ----------------------------
 FIRMWARE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_env_files()
 WS_URI = os.environ.get("DOORBELL_WS_URI", "ws://192.168.1.232:8000/ws")
 UPLOAD_URL = os.environ.get("DOORBELL_UPLOAD_URL", "http://192.168.1.232:8000/upload")
 SENSOR_PIN = get_env_int("DOORBELL_SENSOR_PIN", 4)
@@ -64,6 +111,30 @@ SPOOL_DIR = os.environ.get("DOORBELL_SPOOL_DIR", os.path.join(FIRMWARE_DIR, "spo
 DEVICE_ID = os.environ.get("DOORBELL_DEVICE_ID", get_serial())
 DEVICE_TOKEN = os.environ.get("DOORBELL_DEVICE_TOKEN", "").strip()
 DEVICE_NAME = os.environ.get("DOORBELL_DEVICE_NAME", "Front Door Main")
+PREVIEW_CAPTURE_WIDTH = get_env_int("DOORBELL_PREVIEW_CAPTURE_WIDTH", 640)
+PREVIEW_CAPTURE_HEIGHT = get_env_int("DOORBELL_PREVIEW_CAPTURE_HEIGHT", 480)
+PREVIEW_OUTPUT_WIDTH = get_env_int("DOORBELL_PREVIEW_OUTPUT_WIDTH", 640)
+PREVIEW_OUTPUT_HEIGHT = get_env_int("DOORBELL_PREVIEW_OUTPUT_HEIGHT", 360)
+PREVIEW_FPS = get_env_int("DOORBELL_PREVIEW_FPS", 12)
+PREVIEW_JPEG_QUALITY = get_env_int("DOORBELL_PREVIEW_JPEG_QUALITY", 60)
+PREVIEW_FRAME_SKIP = max(0, get_env_int("DOORBELL_PREVIEW_FRAME_SKIP", 0))
+PREVIEW_BUFFER_SIZE = max(1, get_env_int("DOORBELL_PREVIEW_BUFFER_SIZE", 1))
+PREVIEW_CAMERA_FOURCC = os.environ.get("DOORBELL_PREVIEW_CAMERA_FOURCC", "MJPG")
+PREVIEW_USE_MJPEG = get_env_bool("DOORBELL_PREVIEW_USE_MJPEG", True)
+CAMERA_INIT_RETRIES = max(1, get_env_int("DOORBELL_CAMERA_INIT_RETRIES", 5))
+CAMERA_INIT_DELAY = max(0.1, get_env_float("DOORBELL_CAMERA_INIT_DELAY", 1.5))
+RECORD_WIDTH = get_env_int("DOORBELL_RECORD_WIDTH", 1280)
+RECORD_HEIGHT = get_env_int("DOORBELL_RECORD_HEIGHT", 720)
+RECORD_FPS = get_env_int("DOORBELL_RECORD_FPS", 24)
+RECORD_INPUT_FORMAT = os.environ.get("DOORBELL_RECORD_INPUT_FORMAT", "mjpeg")
+RECORD_CRF = get_env_int("DOORBELL_RECORD_CRF", 21)
+RECORD_PRESET = os.environ.get("DOORBELL_RECORD_PRESET", "superfast")
+RECORD_VIDEO_CODEC = os.environ.get("DOORBELL_RECORD_VIDEO_CODEC", "libx264")
+RECORD_AUDIO_BITRATE = os.environ.get("DOORBELL_RECORD_AUDIO_BITRATE", "96k")
+RECORD_AUDIO_CHANNELS = max(1, get_env_int("DOORBELL_RECORD_AUDIO_CHANNELS", 1))
+RECORD_THREAD_QUEUE_SIZE = max(64, get_env_int("DOORBELL_RECORD_THREAD_QUEUE_SIZE", 256))
+RECORD_RELEASE_DELAY = max(0.2, get_env_float("DOORBELL_RECORD_RELEASE_DELAY", 0.75))
+RECORD_EXTRA_ARGS = shlex.split(os.environ.get("DOORBELL_RECORD_EXTRA_ARGS", ""))
 
 # Global lock and state for Hot-Swapping
 cap_lock = threading.Lock()
@@ -94,19 +165,53 @@ def parse_clip_metadata(filepath: str) -> tuple[str, str]:
     trigger_type, timestamp = base_name.split("_", 1)
     return trigger_type, timestamp
 
-def init_camera(retries: int = 5, delay: float = 1.5):
+
+def build_capture_candidates():
+    candidates = []
+    if PHYSICAL_CAM_PATH:
+        candidates.append(PHYSICAL_CAM_PATH)
+    candidates.append(PHYSICAL_CAM_INDEX)
+    return candidates
+
+
+def configure_preview_capture(video_capture):
+    video_capture.set(cv2.CAP_PROP_BUFFERSIZE, PREVIEW_BUFFER_SIZE)
+    video_capture.set(cv2.CAP_PROP_FRAME_WIDTH, PREVIEW_CAPTURE_WIDTH)
+    video_capture.set(cv2.CAP_PROP_FRAME_HEIGHT, PREVIEW_CAPTURE_HEIGHT)
+    video_capture.set(cv2.CAP_PROP_FPS, PREVIEW_FPS)
+    if PREVIEW_USE_MJPEG and len(PREVIEW_CAMERA_FOURCC) >= 4:
+        fourcc = cv2.VideoWriter_fourcc(*PREVIEW_CAMERA_FOURCC[:4])
+        video_capture.set(cv2.CAP_PROP_FOURCC, fourcc)
+
+
+def open_camera_capture():
+    for source in build_capture_candidates():
+        try:
+            new_cap = cv2.VideoCapture(source, cv2.CAP_V4L2)
+        except TypeError:
+            new_cap = cv2.VideoCapture(source)
+
+        configure_preview_capture(new_cap)
+        if not new_cap.isOpened():
+            new_cap.release()
+            continue
+
+        return new_cap, source
+
+    return None, None
+
+
+def init_camera(retries: int = CAMERA_INIT_RETRIES, delay: float = CAMERA_INIT_DELAY):
     global cap
     for attempt in range(1, retries + 1):
-        new_cap = cv2.VideoCapture(PHYSICAL_CAM_INDEX)
-        new_cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        if new_cap.isOpened():
+        new_cap, source = open_camera_capture()
+        if new_cap is not None:
             ok, test_frame = new_cap.read()
             if ok and test_frame is not None:
                 cap = new_cap
-                print(f"   [Camera] Ready (attempt {attempt}/{retries})")
+                print(f"   [Camera] Ready from {source} (attempt {attempt}/{retries})")
                 return
-            else:
-                new_cap.release()
+            new_cap.release()
         print(f"   [Camera] Not ready yet, retrying in {delay}s... ({attempt}/{retries})")
         time.sleep(delay)
     print("   [Camera] WARNING: Could not open camera at startup. Stream will retry.")
@@ -123,13 +228,14 @@ def generate_frames():
             time.sleep(0.5)
             continue
 
+        success = False
+        frame = None
         with cap_lock:
             if cap is not None and cap.isOpened():
                 success = cap.grab()
                 if success:
                     success, frame = cap.retrieve()
             else:
-                success = False
                 init_camera(retries=1, delay=0)
 
         if not success or frame is None:
@@ -137,11 +243,12 @@ def generate_frames():
             continue
 
         frame_counter += 1
-        if frame_counter % 2 != 0:
+        if PREVIEW_FRAME_SKIP and frame_counter % (PREVIEW_FRAME_SKIP + 1) != 0:
             continue
 
-        frame_resized = cv2.resize(frame, (640, 360))
-        ok, buffer = cv2.imencode(".jpg", frame_resized, [cv2.IMWRITE_JPEG_QUALITY, 65])
+        if frame.shape[1] != PREVIEW_OUTPUT_WIDTH or frame.shape[0] != PREVIEW_OUTPUT_HEIGHT:
+            frame = cv2.resize(frame, (PREVIEW_OUTPUT_WIDTH, PREVIEW_OUTPUT_HEIGHT))
+        ok, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, PREVIEW_JPEG_QUALITY])
 
         if not ok:
             continue
@@ -165,16 +272,54 @@ threading.Thread(target=start_flask, daemon=True).start()
 # ----------------------------
 class VideoManager:
     def __init__(self):
-        self.cmd_template = (
-            "ffmpeg -hide_banner -loglevel warning -y "
-            "-thread_queue_size 512 "
-            f"-f v4l2 -input_format mjpeg -video_size 1280x720 -framerate 30 -i {PHYSICAL_CAM_PATH} "
-            "-thread_queue_size 512 "
-            f"-f alsa -channel_layout stereo -i {AUDIO_DEV} "
-            "-c:v libx264 -preset superfast -crf 23 -c:a aac -b:a 128k "
-            "-t {} {}"
+        print(
+            "   [System] Camera Configured: "
+            f"preview {PREVIEW_CAPTURE_WIDTH}x{PREVIEW_CAPTURE_HEIGHT}@{PREVIEW_FPS} "
+            f"-> {PREVIEW_OUTPUT_WIDTH}x{PREVIEW_OUTPUT_HEIGHT}, "
+            f"record {RECORD_WIDTH}x{RECORD_HEIGHT}@{RECORD_FPS} {RECORD_VIDEO_CODEC} CRF {RECORD_CRF}"
         )
-        print("   [System] Camera Configured: 720p Hot-Swap")
+
+    def build_record_command(self, filename: str) -> list[str]:
+        command = [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "warning",
+            "-y",
+            "-thread_queue_size",
+            str(RECORD_THREAD_QUEUE_SIZE),
+            "-f",
+            "v4l2",
+            "-input_format",
+            RECORD_INPUT_FORMAT,
+            "-video_size",
+            f"{RECORD_WIDTH}x{RECORD_HEIGHT}",
+            "-framerate",
+            str(RECORD_FPS),
+            "-i",
+            PHYSICAL_CAM_PATH,
+            "-thread_queue_size",
+            str(RECORD_THREAD_QUEUE_SIZE),
+            "-f",
+            "alsa",
+            "-ac",
+            str(RECORD_AUDIO_CHANNELS),
+            "-i",
+            AUDIO_DEV,
+            "-c:v",
+            RECORD_VIDEO_CODEC,
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-b:a",
+            RECORD_AUDIO_BITRATE,
+        ]
+        if RECORD_VIDEO_CODEC in {"libx264", "libx264rgb", "libx265"}:
+            command.extend(["-preset", RECORD_PRESET, "-crf", str(RECORD_CRF)])
+        command.extend(RECORD_EXTRA_ARGS)
+        command.extend(["-t", str(VIDEO_DURATION), filename])
+        return command
 
     def record_clip(self, filename: str) -> bool:
         global cap
@@ -184,11 +329,12 @@ class VideoManager:
         with cap_lock:
             if cap is not None:
                 cap.release()
-        time.sleep(1.0)
+                cap = None
+        time.sleep(RECORD_RELEASE_DELAY)
 
         try:
-            full_command = self.cmd_template.format(VIDEO_DURATION, filename)
-            subprocess.run(full_command, shell=True, check=False)
+            command = self.build_record_command(filename)
+            subprocess.run(command, check=False)
             success = os.path.exists(filename) and os.path.getsize(filename) > 1000
 
             if success:

@@ -1,5 +1,5 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, HTTPException, Header, Request
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import os
@@ -94,9 +94,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-
 
 def infer_event_type(filename: str) -> str:
     lower_name = filename.lower()
@@ -239,6 +236,106 @@ def get_accessible_devices_for_user(user_id: str) -> list[dict]:
                 shared_devices.append({**device, "access_role": shared_lookup.get(device_id, "viewer")})
 
     return list(owned_by_id.values()) + shared_devices
+
+
+def get_accessible_events_for_user(user_id: str, limit: int = 20, device_id: str | None = None) -> list[dict]:
+    devices = get_accessible_devices_for_user(user_id)
+    accessible_ids = {device.get("device_id") for device in devices if device.get("device_id")}
+    if device_id:
+        if device_id not in accessible_ids:
+            return []
+        device_ids = [device_id]
+    else:
+        device_ids = list(accessible_ids)
+    if not device_ids:
+        return []
+
+    events = []
+    for device_id in device_ids:
+        response = (
+            supabase.table("events")
+            .select("*")
+            .eq("device_id", device_id)
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        events.extend(response.data or [])
+
+    events.sort(key=lambda event: event.get("created_at") or "", reverse=True)
+    deduped_events = []
+    seen_event_ids = set()
+    for event in events:
+        event_id = event.get("id")
+        if event_id in seen_event_ids:
+            continue
+        seen_event_ids.add(event_id)
+        deduped_events.append(event)
+        if len(deduped_events) >= limit:
+            break
+
+    return deduped_events
+
+
+def get_dashboard_summary_for_user(user_id: str, device_id: str | None = None) -> dict:
+    devices = get_accessible_devices_for_user(user_id)
+    if device_id:
+        devices = [device for device in devices if device.get("device_id") == device_id]
+
+    device_ids = [device.get("device_id") for device in devices if device.get("device_id")]
+    if not device_ids:
+        return {
+            "device_count": 0,
+            "online_devices": 0,
+            "clip_count": 0,
+            "clips_today": 0,
+            "last_event": None,
+            "total_storage_bytes": 0,
+            "retention_days": CLIP_RETENTION_DAYS,
+        }
+
+    clip_count = 0
+    clips_today = 0
+    total_storage_bytes = 0
+    last_event = None
+    today = datetime.datetime.utcnow().date().isoformat()
+
+    for current_device_id in device_ids:
+        response = (
+            supabase.table("events")
+            .select("created_at, file_size", count="exact")
+            .eq("device_id", current_device_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        rows = response.data or []
+        clip_count += response.count or len(rows)
+        total_storage_bytes += sum((row.get("file_size") or 0) for row in rows if isinstance(row.get("file_size"), (int, float)))
+
+        today_response = (
+            supabase.table("events")
+            .select("id", count="exact")
+            .eq("device_id", current_device_id)
+            .gte("created_at", today)
+            .execute()
+        )
+        clips_today += today_response.count or 0
+
+        if rows:
+            candidate_last = rows[0].get("created_at")
+            if candidate_last and (last_event is None or candidate_last > last_event):
+                last_event = candidate_last
+
+    online_devices = sum(1 for device in devices if str(device.get("status") or "").lower() == "online")
+    return {
+        "device_count": len(device_ids),
+        "online_devices": online_devices,
+        "clip_count": clip_count,
+        "clips_today": clips_today,
+        "last_event": last_event,
+        "total_storage_bytes": int(total_storage_bytes),
+        "retention_days": CLIP_RETENTION_DAYS,
+    }
 
 
 def client_info(role: str = "viewer", device_id: str | None = None, authenticated: bool = False) -> dict:
@@ -401,9 +498,17 @@ def login_page():
     return FileResponse(os.path.join(STATIC_DIR, "login.html"))
 
 
+@app.get("/login")
+def login_page_short():
+    return RedirectResponse(url="/login.html", status_code=307)
+
+
 @app.get("/static/login.html")
 def login_page_static():
-    return FileResponse(os.path.join(STATIC_DIR, "login.html"))
+    return RedirectResponse(url="/login.html", status_code=307)
+
+
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 @app.get("/healthz")
@@ -587,18 +692,61 @@ async def get_device_access(authorization: str | None = Header(default=None)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.delete("/api/events/{event_id}")
-async def delete_event(event_id: int):
+@app.get("/api/events")
+async def get_accessible_events(
+    authorization: str | None = Header(default=None),
+    device_id: str | None = None,
+):
+    user_id = get_authenticated_user_id(authorization)
+
+    try:
+        events = get_accessible_events_for_user(user_id, device_id=device_id)
+        return {"events": events}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"   [Events Error] {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/dashboard-summary")
+async def get_dashboard_summary(
+    authorization: str | None = Header(default=None),
+    device_id: str | None = None,
+):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database not connected")
 
+    user_id = get_authenticated_user_id(authorization)
+
     try:
-        response = supabase.table("events").select("video_url").eq("id", event_id).single().execute()
+        return get_dashboard_summary_for_user(user_id, device_id=device_id)
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"   [Summary Error] {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/events/{event_id}")
+async def delete_event(event_id: int, authorization: str | None = Header(default=None)):
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    user_id = get_authenticated_user_id(authorization)
+
+    try:
+        response = supabase.table("events").select("video_url, device_id").eq("id", event_id).single().execute()
 
         if not response.data:
             raise HTTPException(status_code=404, detail="Event not found")
 
         video_url = response.data["video_url"]
+        device_id = response.data["device_id"]
+        device_record = get_device_record(device_id)
+        owner_id = (device_record or {}).get("owner_id") or (device_record or {}).get("user_id")
+        if owner_id != user_id:
+            raise HTTPException(status_code=403, detail="Only the device owner can delete this clip")
         filename = video_url.rsplit("/", 1)[-1].split("?")[0]
 
         print(f"   [Delete] Removing file: {filename}")
@@ -676,16 +824,33 @@ async def websocket_endpoint(websocket: WebSocket):
             disconnected = []
             targets = []
             if isinstance(payload, dict) and payload.get("action") == "manual_record":
-                targets = [client for client in connected_clients if client != websocket and is_device_client(client)]
+                target_device_id = payload.get("device_id")
+                targets = [
+                    client for client in connected_clients
+                    if client != websocket
+                    and is_device_client(client)
+                    and (not target_device_id or client_metadata.get(client, {}).get("device_id") == target_device_id)
+                ]
                 if not targets and DEVICE_AUTH_MODE != "enforce":
-                    targets = [client for client in connected_clients if client != websocket]
+                    targets = [
+                        client for client in connected_clients
+                        if client != websocket
+                        and (not target_device_id or client_metadata.get(client, {}).get("device_id") == target_device_id)
+                    ]
             else:
                 targets = [client for client in connected_clients if client != websocket]
+
+            outgoing_data = data
+            if isinstance(payload, dict):
+                sender_device_id = client_metadata.get(websocket, {}).get("device_id")
+                if sender_device_id and "device_id" not in payload:
+                    payload["device_id"] = sender_device_id
+                    outgoing_data = json.dumps(payload)
 
             for client in targets:
                 if client != websocket:
                     try:
-                        await client.send_text(data)
+                        await client.send_text(outgoing_data)
                     except Exception:
                         disconnected.append(client)
             for client in disconnected:
