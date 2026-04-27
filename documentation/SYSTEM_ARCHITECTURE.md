@@ -23,7 +23,7 @@ The device firmware is implemented in [`device_firmware/doorbell_connect.py`](/h
 
 Its responsibilities are:
 
-- initialize and manage the USB/video camera at `/dev/video0`
+- initialize and manage the CSI (Camera Serial Interface)/video camera at `/dev/video0`
 - initialize and read the GPIO motion sensor
 - capture microphone input from ALSA `plughw:1,0`
 - serve an MJPEG live preview stream over Flask on port `8001`
